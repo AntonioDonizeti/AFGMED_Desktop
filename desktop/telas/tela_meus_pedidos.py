@@ -1,5 +1,7 @@
-from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices
+import os
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -11,101 +13,68 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from desktop.estilos import aplicar_estilo
 from projetoafgmed import app
 from projetoafgmed.models import Pedido
+from projetoafgmed.servicos_pagamento import (
+    ErroPagamento,
+    sincronizar_pagamento_pedido,
+)
+from .tela_pagamento import DialogPagamentoMercadoPago
 
-from .tela_pagamento import (
-    DialogPagamentoMercadoPago,
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+PASTA_PRODUTOS = os.path.join(
+    BASE_DIR,
+    "projetoafgmed",
+    "static",
+    "fotos_produtos",
 )
 
 
 def formatar_real(valor):
-    valor = float(valor or 0)
-
     texto = (
-        f"{valor:,.2f}"
+        f"{float(valor or 0):,.2f}"
         .replace(",", "X")
         .replace(".", ",")
         .replace("X", ".")
     )
-
     return f"R$ {texto}"
 
 
-def obter_status_visual(
-    status_pedido,
-    status_pagamento,
-):
-    status_pedido = (
-        status_pedido or ""
-    ).strip().lower()
+def status_visual(pedido_status, pagamento_status):
+    pedido = (pedido_status or "").lower()
+    pagamento = (pagamento_status or "").lower()
 
-    status_pagamento = (
-        status_pagamento or ""
-    ).strip().lower()
+    if pedido == "pago_pendencia_estoque":
+        return {
+            "texto": "Pagamento aprovado — estoque pendente",
+            "tipo": "analise",
+            "descricao": "O pagamento foi confirmado e o pedido exige revisão de estoque.",
+        }
 
-    if (
-        status_pedido == "pago"
-        or status_pagamento == "approved"
-    ):
+    if pedido == "pago" or pagamento == "approved":
         return {
             "texto": "Pagamento aprovado",
-            "descricao": (
-                "Pedido confirmado e em preparação."
-            ),
-            "cor": "#176b39",
-            "fundo": "#e7f5ec",
+            "tipo": "aprovado",
+            "descricao": "Pedido confirmado e em preparação.",
         }
 
-    if (
-        status_pedido
-        == "aguardando_pagamento"
-        or status_pagamento
-        in [
-            "pending",
-            "pendente",
-            "in_process",
-        ]
-    ):
-        return {
-            "texto": "Aguardando pagamento",
-            "descricao": (
-                "O pagamento ainda está "
-                "pendente de confirmação."
-            ),
-            "cor": "#8a5a00",
-            "fundo": "#fff4d6",
-        }
-
-    if (
-        status_pedido
-        in [
-            "falha",
-            "cancelado",
-        ]
-        or status_pagamento
-        in [
-            "rejected",
-            "cancelled",
-        ]
-    ):
+    if pedido == "falha" or pagamento in {
+        "rejected",
+        "cancelled",
+        "refunded",
+    }:
         return {
             "texto": "Pagamento não aprovado",
-            "descricao": (
-                "O pagamento não foi concluído."
-            ),
-            "cor": "#a10018",
-            "fundo": "#fde8eb",
+            "tipo": "falha",
+            "descricao": "Você pode tentar realizar o pagamento novamente.",
         }
 
     return {
-        "texto": "Status em análise",
-        "descricao": (
-            "Estamos verificando o status "
-            "do pedido."
-        ),
-        "cor": "#555555",
-        "fundo": "#eeeeee",
+        "texto": "Aguardando pagamento",
+        "tipo": "pendente",
+        "descricao": "O pagamento ainda não foi confirmado.",
     }
 
 
@@ -113,106 +82,56 @@ class TelaMeusPedidos(QWidget):
     def __init__(self, usuario):
         super().__init__()
 
-        self.usuario = usuario
         self.usuario_id = usuario.id
+        self.setObjectName("paginaPedidos")
+        aplicar_estilo(self, "pedidos.qss")
 
         layout_principal = QVBoxLayout(self)
-
-        layout_principal.setContentsMargins(
-            20,
-            20,
-            20,
-            20,
-        )
-
-        layout_principal.setSpacing(12)
-
-        # =====================================
-        # CABEÇALHO
-        # =====================================
+        layout_principal.setContentsMargins(26, 22, 26, 26)
+        layout_principal.setSpacing(18)
 
         cabecalho = QHBoxLayout()
+        area_titulo = QVBoxLayout()
+        area_titulo.setSpacing(2)
 
-        titulo = QLabel(
-            "Meus pedidos"
+        titulo = QLabel("Meus pedidos")
+        titulo.setObjectName("tituloPagina")
+
+        subtitulo = QLabel(
+            "Acompanhe pagamentos, produtos, endereço e total de cada compra."
         )
+        subtitulo.setObjectName("subtituloPagina")
 
-        titulo.setStyleSheet(
-            """
-            QLabel {
-                font-size: 22px;
-                font-weight: bold;
-            }
-            """
-        )
+        area_titulo.addWidget(titulo)
+        area_titulo.addWidget(subtitulo)
 
-        botao_atualizar = QPushButton(
-            "Atualizar"
-        )
+        atualizar = QPushButton("Atualizar")
+        atualizar.clicked.connect(self.recarregar)
 
-        botao_atualizar.setMinimumHeight(
-            36
-        )
-
-        botao_atualizar.clicked.connect(
-            self.recarregar
-        )
-
-        cabecalho.addWidget(titulo)
+        cabecalho.addLayout(area_titulo)
         cabecalho.addStretch()
-        cabecalho.addWidget(
-            botao_atualizar
-        )
-
-        # =====================================
-        # ÁREA COM ROLAGEM
-        # =====================================
+        cabecalho.addWidget(atualizar)
 
         self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.NoFrame)
 
-        self.scroll.setWidgetResizable(
-            True
-        )
-
-        self.scroll.setFrameShape(
-            QFrame.NoFrame
-        )
-
-        layout_principal.addLayout(
-            cabecalho
-        )
-
-        layout_principal.addWidget(
-            self.scroll
-        )
+        layout_principal.addLayout(cabecalho)
+        layout_principal.addWidget(self.scroll)
 
         self.recarregar()
 
     def recarregar(self):
         container = QWidget()
-
-        lista_layout = QVBoxLayout(
-            container
-        )
-
-        lista_layout.setContentsMargins(
-            0,
-            0,
-            0,
-            0,
-        )
-
-        lista_layout.setSpacing(14)
+        lista = QVBoxLayout(container)
+        lista.setContentsMargins(0, 0, 0, 10)
+        lista.setSpacing(14)
 
         try:
             with app.app_context():
                 pedidos_banco = (
-                    Pedido.query.filter_by(
-                        id_usuario=self.usuario_id
-                    )
-                    .order_by(
-                        Pedido.data_criacao.desc()
-                    )
+                    Pedido.query.filter_by(id_usuario=self.usuario_id)
+                    .order_by(Pedido.data_criacao.desc())
                     .all()
                 )
 
@@ -220,601 +139,295 @@ class TelaMeusPedidos(QWidget):
 
                 for pedido in pedidos_banco:
                     itens = []
-
                     for item in pedido.itens:
                         itens.append(
                             {
-                                "nome": (
-                                    item.nome_produto
-                                    or "Produto"
-                                ),
-                                "quantidade": int(
-                                    item.quantidade
-                                    or 0
-                                ),
-                                "preco_unitario": float(
-                                    item.preco_unitario
-                                    or 0
-                                ),
-                                "subtotal": float(
-                                    item.subtotal
-                                    or 0
-                                ),
+                                "nome": item.nome_produto or "Produto",
+                                "foto": item.foto_produto or "",
+                                "quantidade": int(item.quantidade or 0),
+                                "preco": float(item.preco_unitario or 0),
+                                "subtotal": float(item.subtotal or 0),
                             }
                         )
 
                     pedidos.append(
                         {
                             "id": pedido.id,
-                            "status": (
-                                pedido.status or ""
-                            ),
-                            "status_pagamento": (
-                                pedido.status_pagamento
-                                or ""
-                            ),
-                            "total_produtos": float(
-                                pedido.total_produtos
-                                or 0
-                            ),
-                            "total_entrega": float(
-                                pedido.total_entrega
-                                or 0
-                            ),
-                            "total": float(
-                                pedido.total or 0
-                            ),
-                            "endereco": (
-                                pedido.endereco or ""
-                            ),
-                            "cidade": (
-                                pedido.cidade or ""
-                            ),
-                            "estado": (
-                                pedido.estado or ""
-                            ),
-                            "cep": (
-                                pedido.cep or ""
-                            ),
-                            "data_criacao": (
-                                pedido.data_criacao
-                            ),
-                            "init_point": (
-                                pedido
-                                .mercado_pago_init_point
-                                or ""
-                            ),
+                            "status": pedido.status or "",
+                            "status_pagamento": pedido.status_pagamento or "",
+                            "total_produtos": float(pedido.total_produtos or 0),
+                            "total_entrega": float(pedido.total_entrega or 0),
+                            "total": float(pedido.total or 0),
+                            "endereco": pedido.endereco or "",
+                            "cidade": pedido.cidade or "",
+                            "estado": pedido.estado or "",
+                            "cep": pedido.cep or "",
+                            "data_criacao": pedido.data_criacao,
                             "itens": itens,
                         }
                     )
-
         except Exception as erro:
-            mensagem = QLabel(
-                "Não foi possível carregar "
-                f"os pedidos.\n\n{erro}"
-            )
-
-            mensagem.setWordWrap(True)
-
-            mensagem.setAlignment(
-                Qt.AlignCenter
-            )
-
-            mensagem.setStyleSheet(
-                "color: #b00020;"
-            )
-
-            lista_layout.addWidget(
-                mensagem
-            )
-
-            lista_layout.addStretch()
-
-            self.scroll.setWidget(
-                container
-            )
-
+            print("ERRO AO CARREGAR PEDIDOS:", erro)
+            mensagem = QLabel("Não foi possível carregar os pedidos.")
+            mensagem.setObjectName("pedidosVazio")
+            mensagem.setAlignment(Qt.AlignCenter)
+            lista.addWidget(mensagem)
+            lista.addStretch()
+            self.scroll.setWidget(container)
             return
 
         if not pedidos:
             mensagem = QLabel(
-                "Você ainda não realizou "
-                "nenhum pedido."
+                "Você ainda não realizou nenhum pedido."
             )
-
-            mensagem.setAlignment(
-                Qt.AlignCenter
-            )
-
-            mensagem.setStyleSheet(
-                """
-                QLabel {
-                    font-size: 16px;
-                    color: #666666;
-                    padding: 40px;
-                }
-                """
-            )
-
-            lista_layout.addWidget(
-                mensagem
-            )
-
-            lista_layout.addStretch()
-
-            self.scroll.setWidget(
-                container
-            )
-
+            mensagem.setObjectName("pedidosVazio")
+            mensagem.setAlignment(Qt.AlignCenter)
+            lista.addWidget(mensagem)
+            lista.addStretch()
+            self.scroll.setWidget(container)
             return
 
         for pedido in pedidos:
-            card = self.criar_card_pedido(
-                pedido
-            )
+            lista.addWidget(self.criar_card_pedido(pedido))
 
-            lista_layout.addWidget(card)
+        lista.addStretch()
+        self.scroll.setWidget(container)
 
-        lista_layout.addStretch()
-
-        self.scroll.setWidget(
-            container
-        )
-
-    def criar_card_pedido(
-        self,
-        pedido,
-    ):
+    def criar_card_pedido(self, pedido):
         card = QFrame()
+        card.setObjectName("pedidoCard")
 
-        card.setFrameShape(
-            QFrame.StyledPanel
-        )
-
-        card.setStyleSheet(
-            """
-            QFrame {
-                background-color: white;
-                border: 1px solid #d8d8d8;
-                border-radius: 8px;
-            }
-
-            QLabel {
-                border: none;
-            }
-            """
-        )
-
-        layout_card = QVBoxLayout(card)
-
-        layout_card.setContentsMargins(
-            18,
-            16,
-            18,
-            16,
-        )
-
-        layout_card.setSpacing(10)
-
-        # =====================================
-        # CABEÇALHO DO PEDIDO
-        # =====================================
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(11)
 
         cabecalho = QHBoxLayout()
 
-        numero = QLabel(
-            f"Pedido nº {pedido['id']}"
-        )
+        area_numero = QVBoxLayout()
+        area_numero.setSpacing(2)
 
-        numero.setStyleSheet(
-            """
-            QLabel {
-                font-size: 18px;
-                font-weight: bold;
-            }
-            """
-        )
+        numero = QLabel(f"Pedido nº {pedido['id']}")
+        numero.setObjectName("numeroPedido")
 
-        if pedido["data_criacao"]:
-            data_texto = (
-                pedido["data_criacao"]
-                .strftime("%d/%m/%Y às %H:%M")
-            )
-        else:
-            data_texto = (
-                "Data não informada"
-            )
+        data_texto = (
+            pedido["data_criacao"].strftime("%d/%m/%Y às %H:%M")
+            if pedido["data_criacao"]
+            else "Data não informada"
+        )
 
         data = QLabel(data_texto)
+        data.setObjectName("dataPedido")
 
-        data.setStyleSheet(
-            "color: #666666;"
-        )
+        area_numero.addWidget(numero)
+        area_numero.addWidget(data)
 
-        cabecalho.addWidget(numero)
-        cabecalho.addStretch()
-        cabecalho.addWidget(data)
-
-        # =====================================
-        # STATUS
-        # =====================================
-
-        status_visual = obter_status_visual(
+        status_info = status_visual(
             pedido["status"],
             pedido["status_pagamento"],
         )
 
-        status_container = QFrame()
+        status = QLabel(status_info["texto"])
+        status.setObjectName("statusPedido")
+        status.setProperty("tipoStatus", status_info["tipo"])
+        status.setAlignment(Qt.AlignCenter)
 
-        status_container.setStyleSheet(
-            f"""
-            QFrame {{
-                background-color:
-                    {status_visual["fundo"]};
-                border: none;
-                border-radius: 6px;
-            }}
+        cabecalho.addLayout(area_numero)
+        cabecalho.addStretch()
+        cabecalho.addWidget(status)
 
-            QLabel {{
-                border: none;
-            }}
-            """
-        )
+        descricao_status = QLabel(status_info["descricao"])
+        descricao_status.setObjectName("enderecoPedido")
+        descricao_status.setWordWrap(True)
 
-        status_layout = QVBoxLayout(
-            status_container
-        )
-
-        status_layout.setContentsMargins(
-            12,
-            9,
-            12,
-            9,
-        )
-
-        status_layout.setSpacing(2)
-
-        status_titulo = QLabel(
-            status_visual["texto"]
-        )
-
-        status_titulo.setStyleSheet(
-            f"""
-            QLabel {{
-                color: {status_visual["cor"]};
-                font-weight: bold;
-                font-size: 15px;
-            }}
-            """
-        )
-
-        status_descricao = QLabel(
-            status_visual["descricao"]
-        )
-
-        status_descricao.setWordWrap(True)
-
-        status_descricao.setStyleSheet(
-            f"""
-            QLabel {{
-                color: {status_visual["cor"]};
-            }}
-            """
-        )
-
-        status_layout.addWidget(
-            status_titulo
-        )
-
-        status_layout.addWidget(
-            status_descricao
-        )
-
-        # =====================================
-        # ITENS
-        # =====================================
-
-        itens_titulo = QLabel(
-            "Produtos"
-        )
-
-        itens_titulo.setStyleSheet(
-            "font-weight: bold;"
+        produtos_titulo = QLabel("Produtos")
+        produtos_titulo.setStyleSheet(
+            "color: #10263b; font-weight: 750; font-size: 14px;"
         )
 
         itens_layout = QVBoxLayout()
-
-        itens_layout.setSpacing(4)
+        itens_layout.setSpacing(7)
 
         for item in pedido["itens"]:
-            linha_item = QHBoxLayout()
-
-            nome_quantidade = QLabel(
-                f"{item['quantidade']}x "
-                f"{item['nome']}"
-            )
-
-            subtotal = QLabel(
-                formatar_real(
-                    item["subtotal"]
-                )
-            )
-
-            subtotal.setAlignment(
-                Qt.AlignRight
-            )
-
-            linha_item.addWidget(
-                nome_quantidade,
-                1,
-            )
-
-            linha_item.addWidget(
-                subtotal
-            )
-
-            itens_layout.addLayout(
-                linha_item
-            )
-
-        # =====================================
-        # ENTREGA
-        # =====================================
+            itens_layout.addWidget(self.criar_linha_produto(item))
 
         endereco = QLabel(
             "Entrega: "
-            f"{pedido['endereco']}, "
-            f"{pedido['cidade']} - "
-            f"{pedido['estado']}, "
-            f"CEP {pedido['cep']}"
+            f"{pedido['endereco']}, {pedido['cidade']} - "
+            f"{pedido['estado']}, CEP {pedido['cep']}"
         )
-
+        endereco.setObjectName("enderecoPedido")
         endereco.setWordWrap(True)
-
-        endereco.setStyleSheet(
-            "color: #555555;"
-        )
-
-        # =====================================
-        # TOTAIS E BOTÕES
-        # =====================================
 
         rodape = QHBoxLayout()
 
-        totais = QVBoxLayout()
+        area_totais = QVBoxLayout()
+        area_totais.setSpacing(2)
 
-        produtos_label = QLabel(
-            "Produtos: "
-            f"{formatar_real(
-                pedido['total_produtos']
-            )}"
+        produtos_total = QLabel(
+            f"Produtos: {formatar_real(pedido['total_produtos'])}"
         )
+        produtos_total.setObjectName("enderecoPedido")
 
-        entrega_label = QLabel(
-            "Entrega: "
-            f"{formatar_real(
-                pedido['total_entrega']
-            )}"
+        entrega_total = QLabel(
+            f"Entrega: {formatar_real(pedido['total_entrega'])}"
         )
+        entrega_total.setObjectName("enderecoPedido")
 
-        total_label = QLabel(
-            "Total: "
-            f"{formatar_real(
-                pedido['total']
-            )}"
-        )
+        total = QLabel(f"Total: {formatar_real(pedido['total'])}")
+        total.setObjectName("totalPedido")
 
-        total_label.setStyleSheet(
-            """
-            QLabel {
-                font-size: 18px;
-                font-weight: bold;
-            }
-            """
-        )
-
-        totais.addWidget(
-            produtos_label
-        )
-
-        totais.addWidget(
-            entrega_label
-        )
-
-        totais.addWidget(
-            total_label
-        )
+        area_totais.addWidget(produtos_total)
+        area_totais.addWidget(entrega_total)
+        area_totais.addWidget(total)
 
         botoes = QHBoxLayout()
+        tipo_status = status_info["tipo"]
 
-        status_pagamento = (
-            pedido["status_pagamento"]
-            or ""
-        ).lower()
-
-        status_pedido = (
-            pedido["status"]
-            or ""
-        ).lower()
-
-        pagamento_pendente = (
-            status_pedido
-            == "aguardando_pagamento"
-            or status_pagamento
-            in [
-                "pending",
-                "pendente",
-                "in_process",
-            ]
-        )
-
-        pagamento_falhou = (
-            status_pedido
-            in [
-                "falha",
-                "cancelado",
-            ]
-            or status_pagamento
-            in [
-                "rejected",
-                "cancelled",
-            ]
-        )
-
-        if pagamento_pendente:
-            botao_pagar = QPushButton(
+        if tipo_status in {"pendente", "falha"}:
+            pagar = QPushButton(
                 "Continuar pagamento"
+                if tipo_status == "pendente"
+                else "Tentar pagar novamente"
             )
-
-            botao_pagar.setMinimumHeight(
-                40
-            )
-
-            botao_pagar.clicked.connect(
-                lambda checked=False,
-                pedido_id=pedido["id"]:
-                self.abrir_pagamento(
-                    pedido_id
+            pagar.setObjectName("botaoSucesso")
+            pagar.clicked.connect(
+                lambda checked=False, pedido_id=pedido["id"]: (
+                    self.abrir_pagamento(pedido_id)
                 )
             )
+            botoes.addWidget(pagar)
 
-            botoes.addWidget(
-                botao_pagar
-            )
-
-        elif pagamento_falhou:
-            botao_tentar = QPushButton(
-                "Tentar pagar novamente"
-            )
-
-            botao_tentar.setMinimumHeight(
-                40
-            )
-
-            botao_tentar.clicked.connect(
-                lambda checked=False,
-                pedido_id=pedido["id"]:
-                self.abrir_pagamento(
-                    pedido_id
+            verificar = QPushButton("Verificar pagamento")
+            verificar.clicked.connect(
+                lambda checked=False, pedido_id=pedido["id"]: (
+                    self.verificar_pagamento(pedido_id)
                 )
             )
+            botoes.addWidget(verificar)
 
-            botoes.addWidget(
-                botao_tentar
-            )
-
-        elif pedido["init_point"]:
-            botao_checkout = QPushButton(
-                "Abrir comprovante/pagamento"
-            )
-
-            botao_checkout.setMinimumHeight(
-                40
-            )
-
-            botao_checkout.clicked.connect(
-                lambda checked=False,
-                url=pedido["init_point"]:
-                self.abrir_link(url)
-            )
-
-            botoes.addWidget(
-                botao_checkout
-            )
-
-        rodape.addLayout(totais)
-
+        rodape.addLayout(area_totais)
         rodape.addStretch()
-
         rodape.addLayout(botoes)
 
-        # =====================================
-        # MONTAGEM DO CARD
-        # =====================================
-
-        layout_card.addLayout(
-            cabecalho
-        )
-
-        layout_card.addWidget(
-            status_container
-        )
-
-        layout_card.addWidget(
-            itens_titulo
-        )
-
-        layout_card.addLayout(
-            itens_layout
-        )
-
-        layout_card.addWidget(
-            endereco
-        )
-
-        layout_card.addLayout(
-            rodape
-        )
+        layout.addLayout(cabecalho)
+        layout.addWidget(descricao_status)
+        layout.addWidget(produtos_titulo)
+        layout.addLayout(itens_layout)
+        layout.addWidget(endereco)
+        layout.addLayout(rodape)
 
         return card
 
-    def abrir_pagamento(
-        self,
-        pedido_id,
-    ):
-        try:
-            dialogo = (
-                DialogPagamentoMercadoPago(
-                    pedido_id=pedido_id,
-                    parent=self,
+    def criar_linha_produto(self, item):
+        linha = QFrame()
+        linha.setObjectName("linhaProdutoPedido")
+
+        layout = QHBoxLayout(linha)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(12)
+
+        foto = QLabel()
+        foto.setFixedSize(58, 58)
+        foto.setAlignment(Qt.AlignCenter)
+
+        caminho = (
+            os.path.join(PASTA_PRODUTOS, item["foto"])
+            if item["foto"]
+            else ""
+        )
+
+        if caminho and os.path.exists(caminho):
+            imagem = QPixmap(caminho)
+            if not imagem.isNull():
+                foto.setPixmap(
+                    imagem.scaled(
+                        50,
+                        50,
+                        Qt.KeepAspectRatio,
+                        Qt.SmoothTransformation,
+                    )
                 )
+            else:
+                foto.setText("—")
+        else:
+            foto.setText("—")
+
+        dados = QVBoxLayout()
+        dados.setSpacing(2)
+
+        nome = QLabel(item["nome"])
+        nome.setObjectName("nomeProdutoPedido")
+
+        detalhe = QLabel(
+            f"{item['quantidade']}x de {formatar_real(item['preco'])}"
+        )
+        detalhe.setObjectName("detalheProdutoPedido")
+
+        dados.addWidget(nome)
+        dados.addWidget(detalhe)
+
+        subtotal = QLabel(formatar_real(item["subtotal"]))
+        subtotal.setObjectName("subtotalProdutoPedido")
+        subtotal.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        layout.addWidget(foto)
+        layout.addLayout(dados, 1)
+        layout.addWidget(subtotal)
+
+        return linha
+
+    def abrir_pagamento(self, pedido_id):
+        try:
+            dialogo = DialogPagamentoMercadoPago(
+                pedido_id=pedido_id,
+                parent=self,
             )
-
             dialogo.exec()
-
-            # Consulta novamente o banco após
-            # fechar a janela de pagamento.
             self.recarregar()
-
         except Exception as erro:
+            print("ERRO AO ABRIR PAGAMENTO DO PEDIDO:", erro)
             QMessageBox.critical(
                 self,
                 "Erro",
-                (
-                    "Não foi possível abrir "
-                    "o pagamento."
-                    f"\n\n{erro}"
-                ),
+                "Não foi possível abrir o pagamento.",
             )
 
-    def abrir_link(
-        self,
-        url,
-    ):
-        if not url:
-            QMessageBox.warning(
+    def verificar_pagamento(self, pedido_id):
+        try:
+            with app.app_context():
+                pagamento = sincronizar_pagamento_pedido(pedido_id)
+
+            status = (pagamento.get("status") or "pending").lower()
+
+            if status == "approved":
+                QMessageBox.information(
+                    self,
+                    "Pagamento aprovado",
+                    "Pagamento confirmado e estoque atualizado.",
+                )
+            elif status in {"rejected", "cancelled"}:
+                QMessageBox.warning(
+                    self,
+                    "Pagamento não aprovado",
+                    "O pagamento foi recusado ou cancelado.",
+                )
+            else:
+                QMessageBox.information(
+                    self,
+                    "Pagamento pendente",
+                    "O pagamento ainda não foi confirmado.",
+                )
+
+            self.recarregar()
+
+        except ErroPagamento as erro:
+            QMessageBox.warning(self, "Pagamento", str(erro))
+        except Exception as erro:
+            print("ERRO AO VERIFICAR PEDIDO:", erro)
+            QMessageBox.critical(
                 self,
-                "Pagamento",
-                (
-                    "Este pedido não possui "
-                    "um link de pagamento."
-                ),
-            )
-
-            return
-
-        abriu = QDesktopServices.openUrl(
-            QUrl(url)
-        )
-
-        if not abriu:
-            QMessageBox.warning(
-                self,
-                "Navegador",
-                (
-                    "Não foi possível abrir "
-                    "o navegador."
-                ),
+                "Erro",
+                "Não foi possível verificar o pagamento.",
             )
 
 

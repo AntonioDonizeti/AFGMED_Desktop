@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from desktop.estilos import aplicar_estilo
 from projetoafgmed import app, database
 from projetoafgmed.models import Consulta
 
@@ -21,257 +22,164 @@ class TelaAgendamentos(QWidget):
         super().__init__()
 
         self.usuario_id = usuario.id
+        self.setObjectName("paginaAgendamentos")
+        aplicar_estilo(self, "agendamentos.qss")
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(
-            20,
-            20,
-            20,
-            20,
-        )
-
-        layout.setSpacing(12)
+        layout_principal = QVBoxLayout(self)
+        layout_principal.setContentsMargins(26, 22, 26, 26)
+        layout_principal.setSpacing(18)
 
         cabecalho = QHBoxLayout()
+        area_titulo = QVBoxLayout()
+        area_titulo.setSpacing(2)
 
-        titulo = QLabel(
-            "Meus agendamentos"
+        titulo = QLabel("Meus agendamentos")
+        titulo.setObjectName("tituloPagina")
+
+        subtitulo = QLabel(
+            "Acompanhe consultas agendadas, concluídas e canceladas."
         )
+        subtitulo.setObjectName("subtituloPagina")
 
-        titulo.setStyleSheet(
-            "font-size: 22px; "
-            "font-weight: bold;"
-        )
+        area_titulo.addWidget(titulo)
+        area_titulo.addWidget(subtitulo)
 
-        atualizar = QPushButton(
-            "Atualizar"
-        )
+        atualizar = QPushButton("Atualizar")
+        atualizar.clicked.connect(self.recarregar)
 
-        atualizar.clicked.connect(
-            self.recarregar
-        )
-
-        cabecalho.addWidget(titulo)
+        cabecalho.addLayout(area_titulo)
         cabecalho.addStretch()
         cabecalho.addWidget(atualizar)
 
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
-        self.scroll.setFrameShape(
-            QFrame.NoFrame
-        )
+        self.scroll.setFrameShape(QFrame.NoFrame)
 
-        layout.addLayout(cabecalho)
-        layout.addWidget(self.scroll)
+        layout_principal.addLayout(cabecalho)
+        layout_principal.addWidget(self.scroll)
 
         self.recarregar()
 
     def recarregar(self):
         container = QWidget()
         lista = QVBoxLayout(container)
+        lista.setContentsMargins(0, 0, 0, 10)
         lista.setSpacing(12)
 
-        with app.app_context():
-            consultas_banco = (
-                Consulta.query.filter(
-                    Consulta.usuario_id
-                    == self.usuario_id,
-                    Consulta.status
-                    != "cancelada",
+        try:
+            with app.app_context():
+                consultas_banco = (
+                    Consulta.query.filter_by(usuario_id=self.usuario_id)
+                    .order_by(
+                        Consulta.data.desc(),
+                        Consulta.horario.asc(),
+                    )
+                    .all()
                 )
-                .order_by(
-                    Consulta.data.asc(),
-                    Consulta.horario.asc(),
-                )
-                .all()
-            )
 
-            consultas = [
-                {
-                    "id": consulta.id,
-                    "medico": (
-                        f"{consulta.medico.nome} "
-                        f"{consulta.medico.sobrenome}"
-                    ).strip(),
-                    "especialidade": (
-                        consulta.medico.especialidade
-                        or ""
-                    ),
-                    "data": consulta.data,
-                    "horario": consulta.horario,
-                    "status": (
-                        consulta.status
-                        or "agendada"
-                    ),
-                }
-                for consulta in consultas_banco
-            ]
+                consultas = [
+                    {
+                        "id": consulta.id,
+                        "medico": (
+                            f"{consulta.medico.nome} "
+                            f"{consulta.medico.sobrenome}"
+                        ).strip(),
+                        "especialidade": consulta.medico.especialidade or "",
+                        "data": consulta.data,
+                        "horario": consulta.horario,
+                        "status": consulta.status or "agendada",
+                    }
+                    for consulta in consultas_banco
+                ]
+        except Exception as erro:
+            print("ERRO AO CARREGAR AGENDAMENTOS:", erro)
+            consultas = []
 
         if not consultas:
-            vazio = QLabel(
-                "Você não possui "
-                "agendamentos ativos."
-            )
-
-            vazio.setAlignment(
-                Qt.AlignCenter
-            )
-
-            vazio.setStyleSheet(
-                "font-size: 16px; "
-                "color: #666;"
-            )
-
+            vazio = QLabel("Você ainda não possui agendamentos.")
+            vazio.setObjectName("agendamentosVazio")
+            vazio.setAlignment(Qt.AlignCenter)
             lista.addWidget(vazio)
             lista.addStretch()
-
-            self.scroll.setWidget(
-                container
-            )
-
+            self.scroll.setWidget(container)
             return
 
-        hoje = date.today()
-
         for consulta in consultas:
-            card = QFrame()
-            card.setObjectName("agendamentoCard")
-
-            card.setFrameShape(
-                QFrame.StyledPanel
-            )
-
-            card_layout = QHBoxLayout(
-                card
-            )
-
-            card_layout.setContentsMargins(
-                16,
-                14,
-                16,
-                14,
-            )
-
-            card_layout.setSpacing(18)
-
-            informacoes = QVBoxLayout()
-
-            medico = QLabel(
-                consulta["medico"]
-                or "Médico"
-            )
-
-            medico.setStyleSheet(
-                "font-size: 18px; "
-                "font-weight: bold;"
-            )
-
-            especialidade = QLabel(
-                consulta["especialidade"]
-                or "Especialidade não informada"
-            )
-
-            data_texto = consulta[
-                "data"
-            ].strftime("%d/%m/%Y")
-
-            data_horario = QLabel(
-                f"Data: {data_texto}    "
-                f"Horário: "
-                f"{consulta['horario']}"
-            )
-
-            status_texto = {
-                "agendada": "Agendada",
-                "concluida": "Concluída",
-                "cancelada": "Cancelada",
-            }.get(
-                consulta["status"].lower(),
-                "Em análise",
-            )
-
-            status = QLabel(
-                f"Status: {status_texto}"
-            )
-
-            status.setStyleSheet(
-                "font-weight: bold;"
-            )
-
-            informacoes.addWidget(medico)
-            informacoes.addWidget(
-                especialidade
-            )
-            informacoes.addWidget(
-                data_horario
-            )
-            informacoes.addWidget(status)
-
-            card_layout.addLayout(
-                informacoes,
-                1,
-            )
-
-            if consulta["status"] == "agendada":
-                cancelar = QPushButton(
-                    "Cancelar consulta"
-                )
-
-                cancelar.setMinimumHeight(
-                    38
-                )
-
-                cancelar.clicked.connect(
-                    lambda checked=False,
-                    consulta_id=consulta["id"]:
-                    self.cancelar_consulta(
-                        consulta_id
-                    )
-                )
-
-                card_layout.addWidget(
-                    cancelar
-                )
-
-            if (
-                consulta["data"] < hoje
-                and consulta["status"]
-                == "agendada"
-            ):
-                observacao = QLabel(
-                    "Aguardando conclusão "
-                    "pelo médico"
-                )
-
-                observacao.setStyleSheet(
-                    "color: #666;"
-                )
-
-                informacoes.addWidget(
-                    observacao
-                )
-
-            lista.addWidget(card)
+            lista.addWidget(self.criar_card(consulta))
 
         lista.addStretch()
+        self.scroll.setWidget(container)
 
-        self.scroll.setWidget(
-            container
+    def criar_card(self, consulta):
+        card = QFrame()
+        card.setObjectName("agendamentoCard")
+
+        layout = QHBoxLayout(card)
+        layout.setContentsMargins(18, 15, 18, 15)
+        layout.setSpacing(18)
+
+        informacoes = QVBoxLayout()
+        informacoes.setSpacing(4)
+
+        medico = QLabel(consulta["medico"] or "Médico")
+        medico.setObjectName("nomeMedicoAgendamento")
+
+        especialidade = QLabel(
+            consulta["especialidade"] or "Especialidade não informada"
         )
+        especialidade.setObjectName("especialidadeAgendamento")
 
-    def cancelar_consulta(
-        self,
-        consulta_id,
-    ):
+        data_texto = consulta["data"].strftime("%d/%m/%Y")
+        detalhe = QLabel(
+            f"Data: {data_texto}   •   Horário: {consulta['horario']}"
+        )
+        detalhe.setObjectName("detalheAgendamento")
+
+        informacoes.addWidget(medico)
+        informacoes.addWidget(especialidade)
+        informacoes.addWidget(detalhe)
+
+        status_valor = (consulta["status"] or "agendada").lower()
+        status_texto = {
+            "agendada": "Agendada",
+            "concluida": "Concluída",
+            "cancelada": "Cancelada",
+        }.get(status_valor, "Em análise")
+
+        status = QLabel(status_texto)
+        status.setObjectName("statusAgendamento")
+        status.setProperty("tipoStatus", status_valor)
+        status.setAlignment(Qt.AlignCenter)
+
+        acoes = QHBoxLayout()
+        acoes.addWidget(status)
+
+        if status_valor == "agendada":
+            cancelar = QPushButton("Cancelar consulta")
+            cancelar.setObjectName("botaoPerigo")
+            cancelar.clicked.connect(
+                lambda checked=False, consulta_id=consulta["id"]: (
+                    self.cancelar_consulta(consulta_id)
+                )
+            )
+            acoes.addWidget(cancelar)
+
+            if consulta["data"] < date.today():
+                observacao = QLabel("Aguardando conclusão pelo médico")
+                observacao.setObjectName("detalheAgendamento")
+                informacoes.addWidget(observacao)
+
+        layout.addLayout(informacoes, 1)
+        layout.addLayout(acoes)
+
+        return card
+
+    def cancelar_consulta(self, consulta_id):
         resposta = QMessageBox.question(
             self,
             "Cancelar consulta",
-            (
-                "Deseja realmente cancelar "
-                "esta consulta?"
-            ),
-            QMessageBox.Yes
-            | QMessageBox.No,
+            "Deseja realmente cancelar esta consulta?",
+            QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
 
@@ -280,57 +188,32 @@ class TelaAgendamentos(QWidget):
 
         try:
             with app.app_context():
-                consulta = (
-                    database.session.get(
-                        Consulta,
-                        consulta_id,
-                    )
-                )
+                consulta = database.session.get(Consulta, consulta_id)
 
                 if consulta is None:
-                    raise ValueError(
-                        "Consulta não encontrada."
-                    )
+                    raise ValueError("Consulta não encontrada.")
 
-                if (
-                    consulta.usuario_id
-                    != self.usuario_id
-                ):
-                    raise ValueError(
-                        "Você não pode cancelar "
-                        "esta consulta."
-                    )
+                if consulta.usuario_id != self.usuario_id:
+                    raise ValueError("Você não pode cancelar esta consulta.")
 
                 if consulta.status != "agendada":
                     raise ValueError(
-                        "Apenas consultas agendadas "
-                        "podem ser canceladas."
+                        "Apenas consultas agendadas podem ser canceladas."
                     )
 
                 consulta.status = "cancelada"
-
                 database.session.commit()
 
             QMessageBox.information(
                 self,
-                "AFGMED",
-                (
-                    "Consulta cancelada "
-                    "com sucesso."
-                ),
+                "Consulta cancelada",
+                "A consulta foi cancelada com sucesso.",
             )
-
             self.recarregar()
 
         except Exception as erro:
-            QMessageBox.critical(
-                self,
-                "Erro",
-                (
-                    "Não foi possível cancelar "
-                    f"a consulta.\n\n{erro}"
-                ),
-            )
+            database.session.rollback()
+            QMessageBox.critical(self, "Erro", str(erro))
 
 
 def tela_agendamentos(usuario):

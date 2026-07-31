@@ -1,0 +1,37 @@
+QWidget#conteudoHome {
+    background-color: #f4f6f8;
+}
+
+QFrame#topoHome {
+    background-color: #091827;
+    border: none;
+}
+
+QLabel#marcaHome {
+    color: #ffffff;
+    font-size: 20px;
+    font-weight: 800;
+}
+
+QLabel#submarcaHome {
+    color: rgba(255, 255, 255, 0.64);
+    font-size: 12px;
+}
+
+QLabel#usuarioHome {
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 650;
+}
+
+QPushButton#botaoLogout {
+    min-height: 34px;
+    color: #ffffff;
+    background-color: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.34);
+}
+
+QPushButton#botaoLogout:hover {
+    background-color: rgba(255, 255, 255, 0.10);
+    border-color: rgba(255, 255, 255, 0.62);
+}

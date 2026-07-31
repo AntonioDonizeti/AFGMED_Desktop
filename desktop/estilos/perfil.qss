@@ -1,0 +1,166 @@
+QWidget#paginaPerfil,
+QWidget#containerPerfil {
+    background-color: #eef4f8;
+}
+
+QScrollArea#scrollPerfil {
+    background-color: #eef4f8;
+    border: none;
+}
+
+QScrollArea#scrollPerfil > QWidget > QWidget {
+    background-color: #eef4f8;
+}
+
+/* PAINÉIS */
+
+QFrame#painelResumoPerfil,
+QFrame#painelDadosPerfil {
+    background-color: #ffffff;
+    border: 1px solid #d6e2e8;
+    border-radius: 14px;
+}
+
+/* FOTO */
+
+QLabel#fotoPerfil {
+    background-color: #f4f8fa;
+    color: #718894;
+    border: 1px solid #cbdbe3;
+    border-radius: 12px;
+    font-size: 13px;
+}
+
+QPushButton#botaoAlterarFoto {
+    background-color: #ffffff;
+    color: #087d87;
+    border: 1px solid #b9d2da;
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-weight: 700;
+}
+
+QPushButton#botaoAlterarFoto:hover {
+    background-color: #e7f5f5;
+    border-color: #18aa9b;
+}
+
+QPushButton#botaoRemoverFoto {
+    background-color: #ffffff;
+    color: #a14a58;
+    border: 1px solid #e1c3c9;
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-weight: 600;
+}
+
+QPushButton#botaoRemoverFoto:hover {
+    background-color: #fdecef;
+    border-color: #d99aa6;
+}
+
+/* RESUMO */
+
+QLabel#nomeResumoPerfil {
+    color: #082b45;
+    font-size: 20px;
+    font-weight: 800;
+}
+
+QLabel#emailResumoPerfil {
+    color: #607b8b;
+    font-size: 13px;
+}
+
+QLabel#tipoResumoPerfil {
+    color: #087d87;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+/* TÍTULOS */
+
+QLabel#tituloPerfil {
+    color: #082b45;
+    font-size: 23px;
+    font-weight: 800;
+}
+
+QLabel#subtituloPerfil {
+    color: #607b8b;
+    font-size: 13px;
+}
+
+/* GRUPOS */
+
+QGroupBox#grupoPerfil {
+    background-color: #ffffff;
+    color: #0b6071;
+    border: 1px solid #dbe6eb;
+    border-radius: 10px;
+    margin-top: 14px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+QGroupBox#grupoPerfil::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 14px;
+    padding: 0 6px;
+    background-color: #ffffff;
+}
+
+QLabel#rotuloCampoPerfil {
+    color: #163e5c;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* CAMPOS */
+
+QWidget#paginaPerfil QLineEdit,
+QWidget#paginaPerfil QDateEdit {
+    background-color: #ffffff;
+    color: #082b45;
+    border: 1px solid #bed0da;
+    border-radius: 8px;
+    min-height: 40px;
+    padding: 0 12px;
+}
+
+QWidget#paginaPerfil QLineEdit:focus,
+QWidget#paginaPerfil QDateEdit:focus {
+    border: 1px solid #18aa9b;
+}
+
+QLineEdit#campoSomenteLeitura {
+    background-color: #edf2f5;
+    color: #607b8b;
+    border: 1px solid #cad8df;
+}
+
+/* BOTÃO SALVAR */
+
+QPushButton#botaoSalvarPerfil {
+    background-color: #17837d;
+    color: #ffffff;
+    border: none;
+    border-radius: 9px;
+    padding: 8px 18px;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+QPushButton#botaoSalvarPerfil:hover {
+    background-color: #116f69;
+}
+
+QPushButton#botaoSalvarPerfil:pressed {
+    background-color: #0c5d58;
+}
+
+QPushButton#botaoSalvarPerfil:disabled {
+    background-color: #b9c9ce;
+    color: #edf3f5;
+}

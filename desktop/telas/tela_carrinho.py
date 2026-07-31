@@ -1,4 +1,7 @@
+import os
+
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -10,18 +13,34 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from desktop.estilos import aplicar_estilo
 from projetoafgmed import app
 from projetoafgmed.models import Carrinho
-
 from projetoafgmed.servicos_compras import (
     ErroCompra,
     alterar_quantidade,
     remover_item,
 )
+from .tela_finalizar_pedido import DialogFinalizarPedido
 
-from .tela_finalizar_pedido import (
-    DialogFinalizarPedido,
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+PASTA_PRODUTOS = os.path.join(
+    BASE_DIR,
+    "projetoafgmed",
+    "static",
+    "fotos_produtos",
 )
+
+
+def formatar_real(valor):
+    texto = (
+        f"{float(valor or 0):,.2f}"
+        .replace(",", "X")
+        .replace(".", ",")
+        .replace("X", ".")
+    )
+    return f"R$ {texto}"
 
 
 class TelaCarrinho(QWidget):
@@ -31,310 +50,254 @@ class TelaCarrinho(QWidget):
         super().__init__()
 
         self.usuario_id = usuario.id
+        self.setObjectName("paginaCarrinho")
+        aplicar_estilo(self, "carrinho.qss")
 
-        layout = QVBoxLayout(self)
-
-        layout.setContentsMargins(
-            20,
-            20,
-            20,
-            20,
-        )
-
-        layout.setSpacing(12)
+        layout_principal = QVBoxLayout(self)
+        layout_principal.setContentsMargins(26, 22, 26, 26)
+        layout_principal.setSpacing(18)
 
         cabecalho = QHBoxLayout()
+        area_titulo = QVBoxLayout()
+        area_titulo.setSpacing(2)
 
-        titulo = QLabel(
-            "Meu carrinho"
+        titulo = QLabel("Meu carrinho")
+        titulo.setObjectName("tituloPagina")
+
+        subtitulo = QLabel(
+            "Revise os itens antes de criar o pedido. O estoque só será baixado após o pagamento aprovado."
         )
+        subtitulo.setObjectName("subtituloPagina")
+        subtitulo.setWordWrap(True)
 
-        titulo.setStyleSheet(
-            "font-size: 22px; "
-            "font-weight: bold;"
-        )
+        area_titulo.addWidget(titulo)
+        area_titulo.addWidget(subtitulo)
 
-        atualizar = QPushButton(
-            "Atualizar"
-        )
+        atualizar = QPushButton("Atualizar")
+        atualizar.clicked.connect(self.recarregar)
 
-        atualizar.clicked.connect(
-            self.recarregar
-        )
-
-        cabecalho.addWidget(titulo)
+        cabecalho.addLayout(area_titulo)
         cabecalho.addStretch()
         cabecalho.addWidget(atualizar)
 
         self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.NoFrame)
 
-        self.scroll.setWidgetResizable(
-            True
-        )
+        resumo = QFrame()
+        resumo.setObjectName("resumoCarrinho")
+        resumo_layout = QHBoxLayout(resumo)
+        resumo_layout.setContentsMargins(20, 16, 20, 16)
 
-        self.scroll.setFrameShape(
-            QFrame.NoFrame
-        )
+        area_total = QVBoxLayout()
+        area_total.setSpacing(1)
 
-        rodape = QHBoxLayout()
+        rotulo_total = QLabel("Total do carrinho")
+        rotulo_total.setObjectName("rotuloResumo")
 
-        self.total_label = QLabel(
-            "Total: R$ 0,00"
-        )
+        self.total_label = QLabel("R$ 0,00")
+        self.total_label.setObjectName("totalCarrinho")
 
-        self.total_label.setStyleSheet(
-            "font-size: 20px; "
-            "font-weight: bold;"
-        )
+        area_total.addWidget(rotulo_total)
+        area_total.addWidget(self.total_label)
 
-        self.finalizar = QPushButton(
-            "Finalizar pedido"
-        )
+        self.botao_finalizar = QPushButton("Finalizar pedido")
+        self.botao_finalizar.setObjectName("botaoSucesso")
+        self.botao_finalizar.setMinimumWidth(190)
+        self.botao_finalizar.setMinimumHeight(46)
+        self.botao_finalizar.clicked.connect(self.abrir_finalizacao)
 
-        self.finalizar.setMinimumHeight(
-            42
-        )
+        resumo_layout.addLayout(area_total)
+        resumo_layout.addStretch()
+        resumo_layout.addWidget(self.botao_finalizar)
 
-        self.finalizar.clicked.connect(
-            self.abrir_finalizacao
-        )
-
-        rodape.addWidget(
-            self.total_label
-        )
-
-        rodape.addStretch()
-
-        rodape.addWidget(
-            self.finalizar
-        )
-
-        layout.addLayout(cabecalho)
-        layout.addWidget(self.scroll)
-        layout.addLayout(rodape)
+        layout_principal.addLayout(cabecalho)
+        layout_principal.addWidget(self.scroll, 1)
+        layout_principal.addWidget(resumo)
 
         self.recarregar()
 
     def recarregar(self):
         container = QWidget()
         lista = QVBoxLayout(container)
+        lista.setContentsMargins(0, 0, 0, 8)
         lista.setSpacing(12)
 
-        with app.app_context():
-            carrinho = (
-                Carrinho.query.filter_by(
-                    id_usuario=self.usuario_id,
-                    status="ativo",
+        try:
+            with app.app_context():
+                carrinho = (
+                    Carrinho.query.filter_by(
+                        id_usuario=self.usuario_id,
+                        status="ativo",
+                    )
+                    .order_by(Carrinho.id.desc())
+                    .first()
                 )
-                .order_by(
-                    Carrinho.id.desc()
-                )
-                .first()
-            )
 
-            if carrinho is None:
                 itens = []
                 total = 0.0
 
-            else:
-                itens = [
-                    {
-                        "id": item.id,
-                        "produto": (
-                            item.produto.nome
-                        ),
-                        "quantidade": (
-                            item.quantidade
-                        ),
-                        "preco_unitario": float(
-                            item.preco_unitario
-                        ),
-                        "subtotal": float(
-                            item.quantidade
-                            * item.preco_unitario
-                        ),
-                        "estoque": (
-                            item.produto.estoque
-                        ),
-                    }
-                    for item in carrinho.itens
-                ]
+                if carrinho:
+                    for item in carrinho.itens:
+                        produto = item.produto
+                        quantidade = int(item.quantidade or 0)
+                        preco = float(item.preco_unitario or 0)
+                        subtotal = quantidade * preco
+                        total += subtotal
 
-                total = sum(
-                    item["subtotal"]
-                    for item in itens
-                )
+                        itens.append(
+                            {
+                                "id": item.id,
+                                "nome": produto.nome if produto else "Produto removido",
+                                "foto": produto.foto if produto else "",
+                                "quantidade": quantidade,
+                                "preco": preco,
+                                "subtotal": subtotal,
+                                "estoque": int(produto.estoque or 0) if produto else 0,
+                            }
+                        )
+        except Exception as erro:
+            print("ERRO AO CARREGAR CARRINHO:", erro)
+            mensagem = QLabel("Não foi possível carregar o carrinho.")
+            mensagem.setObjectName("carrinhoVazio")
+            mensagem.setAlignment(Qt.AlignCenter)
+            lista.addWidget(mensagem)
+            lista.addStretch()
+            self.botao_finalizar.setEnabled(False)
+            self.total_label.setText("R$ 0,00")
+            self.scroll.setWidget(container)
+            return
 
         if not itens:
-            vazio = QLabel(
-                "Seu carrinho está vazio."
+            mensagem = QLabel(
+                "Seu carrinho está vazio. Adicione produtos para continuar."
             )
-
-            vazio.setAlignment(
-                Qt.AlignCenter
-            )
-
-            vazio.setStyleSheet(
-                "font-size: 16px; "
-                "color: #666;"
-            )
-
-            lista.addWidget(vazio)
+            mensagem.setObjectName("carrinhoVazio")
+            mensagem.setAlignment(Qt.AlignCenter)
+            mensagem.setWordWrap(True)
+            lista.addWidget(mensagem)
             lista.addStretch()
-
-            self.finalizar.setEnabled(
-                False
-            )
-
+            self.botao_finalizar.setEnabled(False)
         else:
-            self.finalizar.setEnabled(
-                True
-            )
+            self.botao_finalizar.setEnabled(True)
 
             for item in itens:
-                card = QFrame()
-
-                card.setFrameShape(
-                    QFrame.StyledPanel
-                )
-
-                card_layout = QHBoxLayout(
-                    card
-                )
-
-                card_layout.setContentsMargins(
-                    16,
-                    14,
-                    16,
-                    14,
-                )
-
-                dados = QVBoxLayout()
-
-                nome = QLabel(
-                    item["produto"]
-                )
-
-                nome.setStyleSheet(
-                    "font-size: 17px; "
-                    "font-weight: bold;"
-                )
-
-                preco = QLabel(
-                    "Preço unitário: "
-                    f"R$ {item['preco_unitario']:.2f}"
-                )
-
-                subtotal = QLabel(
-                    "Subtotal: "
-                    f"R$ {item['subtotal']:.2f}"
-                )
-
-                estoque = QLabel(
-                    "Estoque disponível: "
-                    f"{item['estoque']}"
-                )
-
-                dados.addWidget(nome)
-                dados.addWidget(preco)
-                dados.addWidget(subtotal)
-                dados.addWidget(estoque)
-
-                controles = QHBoxLayout()
-
-                diminuir = QPushButton("−")
-                quantidade = QLabel(
-                    str(item["quantidade"])
-                )
-
-                aumentar = QPushButton("+")
-                remover = QPushButton(
-                    "Remover"
-                )
-
-                diminuir.setFixedSize(
-                    38,
-                    38,
-                )
-
-                aumentar.setFixedSize(
-                    38,
-                    38,
-                )
-
-                quantidade.setAlignment(
-                    Qt.AlignCenter
-                )
-
-                quantidade.setMinimumWidth(
-                    35
-                )
-
-                diminuir.clicked.connect(
-                    lambda checked=False,
-                    item_id=item["id"]:
-                    self.mudar_quantidade(
-                        item_id,
-                        "diminuir",
-                    )
-                )
-
-                aumentar.clicked.connect(
-                    lambda checked=False,
-                    item_id=item["id"]:
-                    self.mudar_quantidade(
-                        item_id,
-                        "aumentar",
-                    )
-                )
-
-                remover.clicked.connect(
-                    lambda checked=False,
-                    item_id=item["id"]:
-                    self.remover(item_id)
-                )
-
-                controles.addWidget(diminuir)
-                controles.addWidget(
-                    quantidade
-                )
-                controles.addWidget(aumentar)
-                controles.addSpacing(12)
-                controles.addWidget(remover)
-
-                card_layout.addLayout(
-                    dados,
-                    1,
-                )
-
-                card_layout.addLayout(
-                    controles
-                )
-
-                lista.addWidget(card)
+                lista.addWidget(self.criar_card_item(item))
 
             lista.addStretch()
 
-        total_formatado = (
-            f"{total:,.2f}"
-            .replace(",", "X")
-            .replace(".", ",")
-            .replace("X", ".")
+        self.total_label.setText(formatar_real(total))
+        self.scroll.setWidget(container)
+
+    def criar_card_item(self, item):
+        card = QFrame()
+        card.setObjectName("itemCarrinhoCard")
+
+        layout = QHBoxLayout(card)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(16)
+
+        area_imagem = QFrame()
+        area_imagem.setObjectName("imagemCarrinho")
+        area_imagem.setFixedSize(90, 90)
+
+        layout_imagem = QVBoxLayout(area_imagem)
+        layout_imagem.setContentsMargins(6, 6, 6, 6)
+
+        foto = QLabel()
+        foto.setAlignment(Qt.AlignCenter)
+
+        caminho = (
+            os.path.join(PASTA_PRODUTOS, item["foto"])
+            if item["foto"]
+            else ""
         )
 
-        self.total_label.setText(
-            f"Total: R$ {total_formatado}"
+        if caminho and os.path.exists(caminho):
+            imagem = QPixmap(caminho)
+            if not imagem.isNull():
+                foto.setPixmap(
+                    imagem.scaled(
+                        75,
+                        75,
+                        Qt.KeepAspectRatio,
+                        Qt.SmoothTransformation,
+                    )
+                )
+            else:
+                foto.setText("Sem foto")
+        else:
+            foto.setText("Sem foto")
+
+        layout_imagem.addWidget(foto)
+
+        informacoes = QVBoxLayout()
+        informacoes.setSpacing(4)
+
+        nome = QLabel(item["nome"])
+        nome.setObjectName("nomeItemCarrinho")
+
+        preco = QLabel(f"Preço unitário: {formatar_real(item['preco'])}")
+        preco.setObjectName("detalheItemCarrinho")
+
+        estoque = QLabel(f"Disponível no estoque: {item['estoque']}")
+        estoque.setObjectName("detalheItemCarrinho")
+
+        subtotal = QLabel(f"Subtotal: {formatar_real(item['subtotal'])}")
+        subtotal.setObjectName("subtotalItemCarrinho")
+
+        informacoes.addWidget(nome)
+        informacoes.addWidget(preco)
+        informacoes.addWidget(estoque)
+        informacoes.addWidget(subtotal)
+
+        controles = QHBoxLayout()
+        controles.setSpacing(7)
+
+        diminuir = QPushButton("−")
+        diminuir.setObjectName("botaoQuantidade")
+
+        quantidade = QLabel(str(item["quantidade"]))
+        quantidade.setObjectName("quantidadeCarrinho")
+        quantidade.setAlignment(Qt.AlignCenter)
+
+        aumentar = QPushButton("+")
+        aumentar.setObjectName("botaoQuantidade")
+
+        remover = QPushButton("Remover")
+        remover.setObjectName("botaoPerigo")
+
+        diminuir.clicked.connect(
+            lambda checked=False, item_id=item["id"]: self.mudar_quantidade(
+                item_id,
+                "diminuir",
+            )
+        )
+        aumentar.clicked.connect(
+            lambda checked=False, item_id=item["id"]: self.mudar_quantidade(
+                item_id,
+                "aumentar",
+            )
+        )
+        remover.clicked.connect(
+            lambda checked=False, item_id=item["id"]: self.confirmar_remocao(
+                item_id
+            )
         )
 
-        self.scroll.setWidget(
-            container
-        )
+        controles.addWidget(diminuir)
+        controles.addWidget(quantidade)
+        controles.addWidget(aumentar)
+        controles.addSpacing(8)
+        controles.addWidget(remover)
 
-    def mudar_quantidade(
-        self,
-        item_id,
-        acao,
-    ):
+        layout.addWidget(area_imagem)
+        layout.addLayout(informacoes, 1)
+        layout.addLayout(controles)
+
+        return card
+
+    def mudar_quantidade(self, item_id, acao):
         try:
             with app.app_context():
                 alterar_quantidade(
@@ -344,36 +307,24 @@ class TelaCarrinho(QWidget):
                 )
 
             self.recarregar()
-
             self.estoque_alterado.emit()
 
         except ErroCompra as erro:
-            QMessageBox.warning(
-                self,
-                "Atenção",
-                str(erro),
-            )
-
+            QMessageBox.warning(self, "Carrinho", str(erro))
         except Exception as erro:
+            print("ERRO AO ALTERAR CARRINHO:", erro)
             QMessageBox.critical(
                 self,
                 "Erro",
-                (
-                    "Não foi possível alterar "
-                    f"o item.\n\n{erro}"
-                ),
+                "Não foi possível alterar o item.",
             )
 
-    def remover(self, item_id):
+    def confirmar_remocao(self, item_id):
         resposta = QMessageBox.question(
             self,
             "Remover produto",
-            (
-                "Deseja remover este produto "
-                "do carrinho?"
-            ),
-            QMessageBox.Yes
-            | QMessageBox.No,
+            "Deseja remover este produto do carrinho?",
+            QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
 
@@ -388,24 +339,16 @@ class TelaCarrinho(QWidget):
                 )
 
             self.recarregar()
-
             self.estoque_alterado.emit()
 
         except ErroCompra as erro:
-            QMessageBox.warning(
-                self,
-                "Atenção",
-                str(erro),
-            )
-
+            QMessageBox.warning(self, "Carrinho", str(erro))
         except Exception as erro:
+            print("ERRO AO REMOVER ITEM:", erro)
             QMessageBox.critical(
                 self,
                 "Erro",
-                (
-                    "Não foi possível remover "
-                    f"o item.\n\n{erro}"
-                ),
+                "Não foi possível remover o produto.",
             )
 
     def abrir_finalizacao(self):
@@ -416,3 +359,4 @@ class TelaCarrinho(QWidget):
 
         if dialogo.exec():
             self.recarregar()
+            self.estoque_alterado.emit()

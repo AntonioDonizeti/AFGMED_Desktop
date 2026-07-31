@@ -1,0 +1,74 @@
+QWidget#paginaCarrinho {
+    background-color: #f4f6f8;
+}
+
+QLabel#tituloPagina {
+    color: #10263b;
+    font-size: 25px;
+    font-weight: 800;
+}
+
+QLabel#subtituloPagina {
+    color: #617080;
+}
+
+QFrame#itemCarrinhoCard,
+QFrame#resumoCarrinho {
+    background-color: #ffffff;
+    border: 1px solid #e8edf1;
+    border-radius: 12px;
+}
+
+QFrame#imagemCarrinho {
+    background-color: #f6f8fa;
+    border: 1px solid #e8edf1;
+    border-radius: 8px;
+}
+
+QLabel#nomeItemCarrinho {
+    color: #10263b;
+    font-size: 17px;
+    font-weight: 750;
+}
+
+QLabel#detalheItemCarrinho {
+    color: #617080;
+    font-size: 12px;
+}
+
+QLabel#subtotalItemCarrinho {
+    color: #10263b;
+    font-size: 15px;
+    font-weight: 750;
+}
+
+QLabel#quantidadeCarrinho {
+    min-width: 32px;
+    color: #10263b;
+    font-size: 16px;
+    font-weight: 750;
+}
+
+QPushButton#botaoQuantidade {
+    min-width: 36px;
+    max-width: 36px;
+    min-height: 36px;
+    max-height: 36px;
+    padding: 0;
+}
+
+QLabel#rotuloResumo {
+    color: #617080;
+}
+
+QLabel#totalCarrinho {
+    color: #10263b;
+    font-size: 23px;
+    font-weight: 800;
+}
+
+QLabel#carrinhoVazio {
+    color: #617080;
+    font-size: 16px;
+    padding: 50px;
+}

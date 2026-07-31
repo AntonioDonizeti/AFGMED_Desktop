@@ -1,0 +1,61 @@
+QWidget#paginaAgendamentos {
+    background-color: #f4f6f8;
+}
+
+QLabel#tituloPagina {
+    color: #10263b;
+    font-size: 25px;
+    font-weight: 800;
+}
+
+QLabel#subtituloPagina {
+    color: #617080;
+}
+
+QFrame#agendamentoCard {
+    background-color: #ffffff;
+    border: 1px solid #e8edf1;
+    border-radius: 12px;
+}
+
+QLabel#nomeMedicoAgendamento {
+    color: #10263b;
+    font-size: 17px;
+    font-weight: 750;
+}
+
+QLabel#especialidadeAgendamento,
+QLabel#detalheAgendamento {
+    color: #617080;
+}
+
+QLabel#statusAgendamento {
+    padding: 5px 9px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 750;
+}
+
+QLabel#statusAgendamento[tipoStatus="agendada"] {
+    color: #285575;
+    background-color: #eef5fa;
+    border: 1px solid #bfd4e4;
+}
+
+QLabel#statusAgendamento[tipoStatus="concluida"] {
+    color: #19553e;
+    background-color: #eef8f3;
+    border: 1px solid #b9ddcc;
+}
+
+QLabel#statusAgendamento[tipoStatus="cancelada"] {
+    color: #7d2f35;
+    background-color: #fbf0f1;
+    border: 1px solid #e5bdc0;
+}
+
+QLabel#agendamentosVazio {
+    color: #617080;
+    font-size: 16px;
+    padding: 50px;
+}

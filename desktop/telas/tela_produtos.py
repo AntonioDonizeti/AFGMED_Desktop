@@ -18,18 +18,10 @@ from PySide6.QtWidgets import (
 from desktop.estilos import aplicar_estilo
 from projetoafgmed import app
 from projetoafgmed.models import Produto
-from projetoafgmed.servicos_compras import (
-    ErroCompra,
-    adicionar_produto,
-)
+from projetoafgmed.servicos_compras import ErroCompra, adicionar_produto
 
 
-BASE_DIR = os.path.dirname(
-    os.path.dirname(
-        os.path.dirname(__file__)
-    )
-)
-
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 PASTA_PRODUTOS = os.path.join(
     BASE_DIR,
     "projetoafgmed",
@@ -39,15 +31,12 @@ PASTA_PRODUTOS = os.path.join(
 
 
 def formatar_real(valor):
-    valor = float(valor or 0)
-
     texto = (
-        f"{valor:,.2f}"
+        f"{float(valor or 0):,.2f}"
         .replace(",", "X")
         .replace(".", ",")
         .replace("X", ".")
     )
-
     return f"R$ {texto}"
 
 
@@ -58,98 +47,44 @@ class TelaProdutos(QWidget):
         super().__init__()
 
         self.usuario = usuario
-
-        self.usuario_id = (
-            usuario.id
-            if usuario is not None
-            else None
-        )
-
+        self.usuario_id = usuario.id if usuario is not None else None
         self.cards = []
         self.grid = None
         self.quantidade_colunas = 0
 
         self.setObjectName("paginaProdutos")
-
-        aplicar_estilo(
-            self,
-            "produtos.qss",
-        )
+        aplicar_estilo(self, "produtos.qss")
 
         layout_principal = QVBoxLayout(self)
-
-        layout_principal.setContentsMargins(
-            26,
-            22,
-            26,
-            26,
-        )
-
+        layout_principal.setContentsMargins(26, 22, 26, 26)
         layout_principal.setSpacing(18)
 
-        # =====================================
-        # CABEÇALHO
-        # =====================================
-
         cabecalho = QHBoxLayout()
-        cabecalho.setSpacing(12)
-
         area_titulo = QVBoxLayout()
-        area_titulo.setSpacing(3)
+        area_titulo.setSpacing(2)
 
-        titulo = QLabel(
-            "Produtos farmacêuticos"
-        )
-
-        titulo.setObjectName(
-            "tituloPagina"
-        )
+        titulo = QLabel("Produtos farmacêuticos")
+        titulo.setObjectName("tituloPagina")
 
         subtitulo = QLabel(
-            "Encontre medicamentos e produtos "
-            "disponíveis para compra."
+            "Medicamentos e produtos disponíveis no catálogo AFGMED."
         )
-
-        subtitulo.setObjectName(
-            "subtituloPagina"
-        )
+        subtitulo.setObjectName("subtituloPagina")
 
         area_titulo.addWidget(titulo)
         area_titulo.addWidget(subtitulo)
 
-        botao_atualizar = QPushButton(
-            "Atualizar produtos"
-        )
-
-        botao_atualizar.setObjectName(
-            "botaoSecundario"
-        )
-
-        botao_atualizar.setMinimumHeight(40)
-
-        botao_atualizar.clicked.connect(
-            self.recarregar
-        )
+        atualizar = QPushButton("Atualizar")
+        atualizar.clicked.connect(self.recarregar)
 
         cabecalho.addLayout(area_titulo)
         cabecalho.addStretch()
-        cabecalho.addWidget(botao_atualizar)
-
-        # =====================================
-        # ÁREA DE ROLAGEM
-        # =====================================
+        cabecalho.addWidget(atualizar)
 
         self.scroll = QScrollArea()
-
         self.scroll.setWidgetResizable(True)
-
-        self.scroll.setFrameShape(
-            QFrame.NoFrame
-        )
-
-        self.scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarAlwaysOff
-        )
+        self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         layout_principal.addLayout(cabecalho)
         layout_principal.addWidget(self.scroll)
@@ -158,26 +93,11 @@ class TelaProdutos(QWidget):
 
     def recarregar(self):
         container = QWidget()
-
-        container.setObjectName(
-            "containerProdutos"
-        )
-
         self.grid = QGridLayout(container)
-
-        self.grid.setContentsMargins(
-            0,
-            0,
-            0,
-            12,
-        )
-
+        self.grid.setContentsMargins(0, 0, 0, 12)
         self.grid.setHorizontalSpacing(18)
         self.grid.setVerticalSpacing(18)
-
-        self.grid.setAlignment(
-            Qt.AlignTop | Qt.AlignHCenter
-        )
+        self.grid.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
 
         self.cards = []
         self.quantidade_colunas = 0
@@ -185,11 +105,8 @@ class TelaProdutos(QWidget):
         try:
             with app.app_context():
                 produtos_banco = (
-                    Produto.query
-                    .filter_by(ativo=True)
-                    .order_by(
-                        Produto.nome.asc()
-                    )
+                    Produto.query.filter_by(ativo=True)
+                    .order_by(Produto.nome.asc())
                     .all()
                 )
 
@@ -197,193 +114,85 @@ class TelaProdutos(QWidget):
                     {
                         "id": produto.id,
                         "nome": produto.nome or "",
-                        "descricao": (
-                            produto.descricao or ""
-                        ),
-                        "preco": float(
-                            produto.preco or 0
-                        ),
-                        "estoque": int(
-                            produto.estoque or 0
-                        ),
+                        "descricao": produto.descricao or "",
+                        "preco": float(produto.preco or 0),
+                        "estoque": int(produto.estoque or 0),
                         "foto": produto.foto or "",
                     }
                     for produto in produtos_banco
                 ]
-
         except Exception as erro:
             mensagem = QLabel(
-                "Não foi possível carregar os produtos."
-                f"\n\n{erro}"
+                "Não foi possível carregar os produtos.\n\n" + str(erro)
             )
-
-            mensagem.setObjectName(
-                "mensagemErro"
-            )
-
-            mensagem.setAlignment(
-                Qt.AlignCenter
-            )
-
+            mensagem.setObjectName("mensagemErro")
             mensagem.setWordWrap(True)
-
-            self.grid.addWidget(
-                mensagem,
-                0,
-                0,
-            )
-
+            mensagem.setAlignment(Qt.AlignCenter)
+            self.grid.addWidget(mensagem, 0, 0)
             self.scroll.setWidget(container)
             return
 
         if not produtos:
-            mensagem = QLabel(
-                "Nenhum produto disponível no momento."
-            )
-
-            mensagem.setObjectName(
-                "mensagemVazia"
-            )
-
-            mensagem.setAlignment(
-                Qt.AlignCenter
-            )
-
-            self.grid.addWidget(
-                mensagem,
-                0,
-                0,
-            )
-
+            mensagem = QLabel("Nenhum produto disponível no momento.")
+            mensagem.setObjectName("mensagemVazia")
+            mensagem.setAlignment(Qt.AlignCenter)
+            self.grid.addWidget(mensagem, 0, 0)
             self.scroll.setWidget(container)
             return
 
         for produto in produtos:
-            card = self.criar_card_produto(
-                produto
-            )
-
-            self.cards.append(card)
+            self.cards.append(self.criar_card_produto(produto))
 
         self.scroll.setWidget(container)
+        QTimer.singleShot(0, self.reorganizar_cards)
 
-        QTimer.singleShot(
-            0,
-            self.reorganizar_cards,
-        )
-
-    def criar_card_produto(
-        self,
-        produto,
-    ):
+    def criar_card_produto(self, produto):
         card = QFrame()
         card.setObjectName("produtoCard")
-
-        card.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Fixed,
-        )
-
-        card.setMinimumWidth(275)
+        card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        card.setMinimumWidth(270)
         card.setMaximumWidth(365)
         card.setMinimumHeight(470)
 
-        layout_card = QVBoxLayout(card)
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(18, 16, 18, 18)
+        layout.setSpacing(12)
 
-        layout_card.setContentsMargins(
-            18,
-            17,
-            18,
-            18,
-        )
-
-        layout_card.setSpacing(12)
-
-        # =====================================
-        # STATUS DE ESTOQUE
-        # =====================================
-
-        cabecalho_card = QHBoxLayout()
-
+        cabecalho = QHBoxLayout()
         badge = QLabel()
 
         if produto["estoque"] <= 0:
             badge.setText("Sem estoque")
-
-            badge.setObjectName(
-                "badgeSemEstoque"
-            )
-
+            badge.setObjectName("badgeSemEstoque")
         elif produto["estoque"] <= 5:
-            badge.setText(
-                "Últimas unidades"
-            )
-
-            badge.setObjectName(
-                "badgePoucoEstoque"
-            )
-
+            badge.setText("Últimas unidades")
+            badge.setObjectName("badgePoucoEstoque")
         else:
             badge.setText("Em estoque")
+            badge.setObjectName("badgeDisponivel")
 
-            badge.setObjectName(
-                "badgeDisponivel"
-            )
-
-        cabecalho_card.addWidget(
-            badge,
-            alignment=Qt.AlignLeft,
-        )
-
-        cabecalho_card.addStretch()
-
-        # =====================================
-        # IMAGEM
-        # =====================================
+        cabecalho.addWidget(badge)
+        cabecalho.addStretch()
 
         area_imagem = QFrame()
-
-        area_imagem.setObjectName(
-            "areaImagem"
-        )
-
+        area_imagem.setObjectName("areaImagem")
         area_imagem.setFixedHeight(175)
 
-        layout_imagem = QVBoxLayout(
-            area_imagem
-        )
-
-        layout_imagem.setContentsMargins(
-            12,
-            12,
-            12,
-            12,
-        )
+        layout_imagem = QVBoxLayout(area_imagem)
+        layout_imagem.setContentsMargins(10, 10, 10, 10)
 
         foto = QLabel()
+        foto.setObjectName("fotoProduto")
+        foto.setAlignment(Qt.AlignCenter)
 
-        foto.setObjectName(
-            "fotoProduto"
+        caminho_foto = (
+            os.path.join(PASTA_PRODUTOS, produto["foto"])
+            if produto["foto"]
+            else ""
         )
 
-        foto.setAlignment(
-            Qt.AlignCenter
-        )
-
-        caminho_foto = ""
-
-        if produto["foto"]:
-            caminho_foto = os.path.join(
-                PASTA_PRODUTOS,
-                produto["foto"],
-            )
-
-        if (
-            caminho_foto
-            and os.path.exists(caminho_foto)
-        ):
+        if caminho_foto and os.path.exists(caminho_foto):
             imagem = QPixmap(caminho_foto)
-
             if not imagem.isNull():
                 foto.setPixmap(
                     imagem.scaled(
@@ -393,278 +202,148 @@ class TelaProdutos(QWidget):
                         Qt.SmoothTransformation,
                     )
                 )
-
             else:
-                foto.setText(
-                    "Imagem indisponível"
-                )
-
+                foto.setText("Imagem indisponível")
         else:
-            foto.setText(
-                "Imagem indisponível"
-            )
+            foto.setText("Imagem indisponível")
 
         layout_imagem.addWidget(foto)
 
-        # =====================================
-        # INFORMAÇÕES
-        # =====================================
-
-        nome = QLabel(
-            produto["nome"] or "Produto"
-        )
-
-        nome.setObjectName(
-            "nomeProduto"
-        )
-
+        nome = QLabel(produto["nome"] or "Produto")
+        nome.setObjectName("nomeProduto")
         nome.setWordWrap(True)
 
         descricao = QLabel(
-            produto["descricao"]
-            or "Descrição não informada."
+            produto["descricao"] or "Descrição não informada."
         )
-
-        descricao.setObjectName(
-            "descricaoProduto"
-        )
-
+        descricao.setObjectName("descricaoProduto")
         descricao.setWordWrap(True)
-
-        descricao.setAlignment(
-            Qt.AlignTop | Qt.AlignLeft
-        )
-
+        descricao.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         descricao.setMinimumHeight(42)
         descricao.setMaximumHeight(60)
 
-        # =====================================
-        # PREÇO E ESTOQUE
-        # =====================================
-
         painel_preco = QFrame()
-
-        painel_preco.setObjectName(
-            "painelPreco"
-        )
-
-        layout_preco = QHBoxLayout(
-            painel_preco
-        )
-
-        layout_preco.setContentsMargins(
-            14,
-            10,
-            14,
-            10,
-        )
+        painel_preco.setObjectName("painelPreco")
+        layout_preco = QHBoxLayout(painel_preco)
+        layout_preco.setContentsMargins(14, 10, 14, 10)
 
         coluna_preco = QVBoxLayout()
         coluna_preco.setSpacing(1)
 
-        rotulo_preco = QLabel("Preço")
+        rotulo = QLabel("Preço")
+        rotulo.setObjectName("rotuloPreco")
 
-        rotulo_preco.setObjectName(
-            "rotuloPreco"
-        )
+        valor = QLabel(formatar_real(produto["preco"]))
+        valor.setObjectName("valorProduto")
 
-        valor = QLabel(
-            formatar_real(
-                produto["preco"]
-            )
-        )
-
-        valor.setObjectName(
-            "valorProduto"
-        )
-
-        coluna_preco.addWidget(
-            rotulo_preco
-        )
-
+        coluna_preco.addWidget(rotulo)
         coluna_preco.addWidget(valor)
 
-        estoque = QLabel(
-            f"{produto['estoque']} un."
-        )
+        estoque = QLabel(f"{produto['estoque']} un.")
+        estoque.setObjectName("textoEstoque")
+        estoque.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
-        estoque.setObjectName(
-            "textoEstoque"
-        )
-
-        estoque.setAlignment(
-            Qt.AlignRight | Qt.AlignVCenter
-        )
-
-        layout_preco.addLayout(
-            coluna_preco
-        )
-
+        layout_preco.addLayout(coluna_preco)
         layout_preco.addStretch()
+        layout_preco.addWidget(estoque)
 
-        layout_preco.addWidget(
-            estoque
-        )
+        botao = QPushButton("Adicionar ao carrinho")
+        botao.setObjectName("botaoComprar")
+        botao.setMinimumHeight(46)
 
-        # =====================================
-        # BOTÃO
-        # =====================================
-
-        botao_adicionar = QPushButton(
-            "Adicionar ao carrinho"
-        )
-
-        botao_adicionar.setObjectName(
-            "botaoComprar"
-        )
-
-        botao_adicionar.setMinimumHeight(
-            46
-        )
-
-        usuario_medico = bool(
-            getattr(
-                self.usuario,
-                "is_medico",
-                False,
-            )
-        )
-
-        usuario_admin = bool(
-            getattr(
-                self.usuario,
-                "is_admin",
-                False,
-            )
-        )
+        usuario_medico = bool(getattr(self.usuario, "is_medico", False))
+        usuario_admin = bool(getattr(self.usuario, "is_admin", False))
 
         if self.usuario_id is None:
-            botao_adicionar.setEnabled(False)
-
-            botao_adicionar.setToolTip(
-                "Usuário não identificado."
-            )
-
-        elif (
-            usuario_medico
-            and not usuario_admin
-        ):
-            botao_adicionar.setEnabled(False)
-
-            botao_adicionar.setToolTip(
-                "O acesso de médico não pode "
-                "realizar compras."
-            )
-
+            botao.setEnabled(False)
+            botao.setToolTip("Usuário não identificado.")
+        elif usuario_medico and not usuario_admin:
+            botao.setEnabled(False)
+            botao.setToolTip("Usuários médicos não podem comprar como pacientes.")
         elif produto["estoque"] <= 0:
-            botao_adicionar.setEnabled(False)
-
-            botao_adicionar.setText(
-                "Produto indisponível"
-            )
-
+            botao.setEnabled(False)
+            botao.setText("Produto indisponível")
         else:
-            botao_adicionar.clicked.connect(
-                lambda checked=False,
-                produto_id=produto["id"]:
-                self.adicionar_ao_carrinho(
-                    produto_id
+            botao.clicked.connect(
+                lambda checked=False, produto_id=produto["id"]: (
+                    self.adicionar_ao_carrinho(produto_id)
                 )
             )
 
-        layout_card.addLayout(
-            cabecalho_card
-        )
-
-        layout_card.addWidget(
-            area_imagem
-        )
-
-        layout_card.addWidget(nome)
-        layout_card.addWidget(descricao)
-        layout_card.addStretch()
-
-        layout_card.addWidget(
-            painel_preco
-        )
-
-        layout_card.addWidget(
-            botao_adicionar
-        )
+        layout.addLayout(cabecalho)
+        layout.addWidget(area_imagem)
+        layout.addWidget(nome)
+        layout.addWidget(descricao)
+        layout.addStretch()
+        layout.addWidget(painel_preco)
+        layout.addWidget(botao)
 
         return card
 
     def reorganizar_cards(self):
-        if (
-            self.grid is None
-            or not self.cards
-        ):
+        if self.grid is None or not self.cards:
             return
 
-        largura = (
-            self.scroll.viewport().width()
-        )
+        largura_disponivel = self.scroll.viewport().width()
+        espacamento = self.grid.horizontalSpacing()
 
-        if largura >= 1030:
+        if largura_disponivel >= 1030:
             colunas = 3
-
-        elif largura >= 680:
+        elif largura_disponivel >= 680:
             colunas = 2
-
         else:
             colunas = 1
 
-        if (
-            colunas
-            == self.quantidade_colunas
-        ):
-            return
+        largura_util = (
+                largura_disponivel
+                - ((colunas - 1) * espacamento)
+                - 8
+        )
+
+        largura_card = largura_util // colunas
+
+        largura_card = max(
+            275,
+            min(360, largura_card),
+        )
 
         self.quantidade_colunas = colunas
 
         while self.grid.count():
             self.grid.takeAt(0)
 
+        # Impede que as colunas sejam esticadas.
         for coluna in range(3):
             self.grid.setColumnStretch(
                 coluna,
                 0,
             )
 
-        for coluna in range(colunas):
-            self.grid.setColumnStretch(
-                coluna,
-                1,
-            )
+        # Cards começam pela esquerda, sem grandes vãos.
+        self.grid.setAlignment(
+            Qt.AlignTop | Qt.AlignLeft
+        )
 
-        for indice, card in enumerate(
-            self.cards
-        ):
+        for indice, card in enumerate(self.cards):
             linha = indice // colunas
             coluna = indice % colunas
+
+            card.setFixedWidth(
+                largura_card
+            )
 
             self.grid.addWidget(
                 card,
                 linha,
                 coluna,
-                alignment=(
-                    Qt.AlignTop
-                    | Qt.AlignHCenter
-                ),
+                alignment=Qt.AlignTop,
             )
 
     def resizeEvent(self, evento):
         super().resizeEvent(evento)
+        QTimer.singleShot(0, self.reorganizar_cards)
 
-        QTimer.singleShot(
-            0,
-            self.reorganizar_cards,
-        )
-
-    def adicionar_ao_carrinho(
-        self,
-        produto_id,
-    ):
+    def adicionar_ao_carrinho(self, produto_id):
         try:
             with app.app_context():
                 mensagem = adicionar_produto(
@@ -672,14 +351,8 @@ class TelaProdutos(QWidget):
                     produto_id=produto_id,
                 )
 
-            QMessageBox.information(
-                self,
-                "Produto adicionado",
-                mensagem,
-            )
-
+            QMessageBox.information(self, "Produto adicionado", mensagem)
             self.recarregar()
-
             self.carrinho_alterado.emit()
 
         except ErroCompra as erro:
@@ -688,16 +361,12 @@ class TelaProdutos(QWidget):
                 "Não foi possível adicionar",
                 str(erro),
             )
-
         except Exception as erro:
+            print("ERRO AO ADICIONAR PRODUTO:", erro)
             QMessageBox.critical(
                 self,
                 "Erro",
-                (
-                    "Não foi possível adicionar "
-                    "o produto ao carrinho."
-                    f"\n\n{erro}"
-                ),
+                "Não foi possível adicionar o produto ao carrinho.",
             )
 
 

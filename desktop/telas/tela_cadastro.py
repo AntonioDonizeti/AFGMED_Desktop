@@ -1,5 +1,6 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QFrame,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -9,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 from sqlalchemy.exc import IntegrityError
 
+from desktop.estilos import aplicar_estilo
 from projetoafgmed import app, bcrypt, database
 from projetoafgmed.models import PerfilUsuario, Usuario
 
@@ -23,18 +25,39 @@ def abrir_tela_cadastro(janela_anterior=None):
         janela_anterior.close()
 
     janela_cadastro = QWidget()
+    janela_cadastro.setObjectName("paginaAuth")
     janela_cadastro.setWindowTitle("Criar conta - AFGMED")
-    janela_cadastro.resize(400, 480)
+    janela_cadastro.resize(570, 700)
+    janela_cadastro.setMinimumSize(520, 640)
 
-    layout = QVBoxLayout(janela_cadastro)
-    layout.setContentsMargins(40, 35, 40, 35)
-    layout.setSpacing(12)
+    aplicar_estilo(janela_cadastro, "auth.qss")
 
-    titulo = QLabel("Criar novo usuário")
+    layout_raiz = QVBoxLayout(janela_cadastro)
+    layout_raiz.setContentsMargins(45, 30, 45, 30)
+    layout_raiz.addStretch()
+
+    card = QFrame()
+    card.setObjectName("cardAuth")
+    card.setMaximumWidth(450)
+
+    layout = QVBoxLayout(card)
+    layout.setContentsMargins(38, 30, 38, 30)
+    layout.setSpacing(11)
+
+    marca = QLabel("AFGMED")
+    marca.setObjectName("marcaAuth")
+    marca.setAlignment(Qt.AlignCenter)
+
+    titulo = QLabel("Crie sua conta")
+    titulo.setObjectName("tituloAuth")
     titulo.setAlignment(Qt.AlignCenter)
-    titulo.setStyleSheet(
-        "font-size: 24px; font-weight: bold;"
+
+    subtitulo = QLabel(
+        "Cadastre-se para agendar consultas e comprar produtos."
     )
+    subtitulo.setObjectName("subtituloAuth")
+    subtitulo.setAlignment(Qt.AlignCenter)
+    subtitulo.setWordWrap(True)
 
     nome = QLineEdit()
     nome.setPlaceholderText("Nome")
@@ -49,35 +72,40 @@ def abrir_tela_cadastro(janela_anterior=None):
     email.setClearButtonEnabled(True)
 
     senha = QLineEdit()
-    senha.setPlaceholderText("Senha")
+    senha.setPlaceholderText("Senha com pelo menos 6 caracteres")
     senha.setEchoMode(QLineEdit.Password)
 
     confirmar = QLineEdit()
-    confirmar.setPlaceholderText("Confirmar senha")
+    confirmar.setPlaceholderText("Confirme a senha")
     confirmar.setEchoMode(QLineEdit.Password)
 
     mensagem = QLabel()
+    mensagem.setObjectName("mensagemErro")
     mensagem.setAlignment(Qt.AlignCenter)
     mensagem.setWordWrap(True)
-    mensagem.setStyleSheet("color: #b00020;")
 
     btn_cadastrar = QPushButton("Criar conta")
-    btn_voltar = QPushButton("Voltar ao início")
+    btn_cadastrar.setObjectName("botaoPrimario")
+    btn_cadastrar.setMinimumHeight(46)
 
-    btn_cadastrar.setMinimumHeight(42)
+    btn_voltar = QPushButton("Voltar")
     btn_voltar.setMinimumHeight(42)
 
+    layout.addWidget(marca)
     layout.addWidget(titulo)
-    layout.addSpacing(10)
+    layout.addWidget(subtitulo)
+    layout.addSpacing(6)
     layout.addWidget(nome)
     layout.addWidget(sobrenome)
     layout.addWidget(email)
     layout.addWidget(senha)
     layout.addWidget(confirmar)
+    layout.addWidget(mensagem)
     layout.addWidget(btn_cadastrar)
     layout.addWidget(btn_voltar)
-    layout.addWidget(mensagem)
-    layout.addStretch()
+
+    layout_raiz.addWidget(card, alignment=Qt.AlignCenter)
+    layout_raiz.addStretch()
 
     def cadastrar():
         nome_informado = nome.text().strip()
@@ -85,7 +113,6 @@ def abrir_tela_cadastro(janela_anterior=None):
         email_informado = email.text().strip().lower()
         senha_informada = senha.text()
         confirmacao_informada = confirmar.text()
-
         mensagem.clear()
 
         if not all(
@@ -109,9 +136,7 @@ def abrir_tela_cadastro(janela_anterior=None):
             return
 
         if len(senha_informada) < 6:
-            mensagem.setText(
-                "A senha deve ter pelo menos 6 caracteres."
-            )
+            mensagem.setText("A senha deve ter pelo menos 6 caracteres.")
             return
 
         btn_cadastrar.setEnabled(False)
@@ -120,19 +145,11 @@ def abrir_tela_cadastro(janela_anterior=None):
         try:
             with app.app_context():
                 try:
-                    usuario_existente = Usuario.query.filter_by(
-                        email=email_informado
-                    ).first()
-
-                    if usuario_existente is not None:
-                        mensagem.setText(
-                            "Este e-mail já está cadastrado."
-                        )
+                    if Usuario.query.filter_by(email=email_informado).first():
+                        mensagem.setText("Este e-mail já está cadastrado.")
                         return
 
-                    senha_hash = bcrypt.generate_password_hash(
-                        senha_informada
-                    )
+                    senha_hash = bcrypt.generate_password_hash(senha_informada)
 
                     if isinstance(senha_hash, bytes):
                         senha_hash = senha_hash.decode("utf-8")
@@ -147,18 +164,10 @@ def abrir_tela_cadastro(janela_anterior=None):
                     )
 
                     database.session.add(novo_usuario)
-
-                    # Gera o ID sem finalizar a transação.
                     database.session.flush()
-
-                    # Cria também um perfil vazio para o usuário.
-                    novo_perfil = PerfilUsuario(
-                        id_usuario=novo_usuario.id
+                    database.session.add(
+                        PerfilUsuario(id_usuario=novo_usuario.id)
                     )
-
-                    database.session.add(novo_perfil)
-
-                    # Grava definitivamente no afgmed.db.
                     database.session.commit()
 
                 except Exception:
@@ -167,8 +176,8 @@ def abrir_tela_cadastro(janela_anterior=None):
 
             QMessageBox.information(
                 janela_cadastro,
-                "AFGMED",
-                "Cadastro realizado!",
+                "Conta criada",
+                "Cadastro realizado com sucesso.",
             )
 
             from .tela_login import abrir_tela_login
@@ -176,14 +185,11 @@ def abrir_tela_cadastro(janela_anterior=None):
             abrir_tela_login(janela_cadastro)
 
         except IntegrityError:
-            mensagem.setText(
-                "Este e-mail já está cadastrado."
-            )
+            mensagem.setText("Este e-mail já está cadastrado.")
 
         except Exception as erro:
-            mensagem.setText(
-                f"Erro ao salvar o cadastro: {erro}"
-            )
+            print("ERRO DE CADASTRO:", erro)
+            mensagem.setText("Não foi possível concluir o cadastro.")
 
         finally:
             btn_cadastrar.setEnabled(True)
@@ -191,7 +197,6 @@ def abrir_tela_cadastro(janela_anterior=None):
 
     def voltar_inicio():
         janela_cadastro.close()
-
         from .tela_inicio import abrir_tela_inicio
 
         abrir_tela_inicio()

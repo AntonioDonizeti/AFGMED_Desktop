@@ -66,31 +66,27 @@ class TelaMedicos(QWidget):
         self.grid = None
         self.quantidade_colunas = 0
 
-        self.setObjectName(
-            "paginaMedicos"
-        )
+        self.setObjectName("paginaMedicos")
 
         aplicar_estilo(
             self,
             "medicos.qss",
         )
 
-        layout_principal = QVBoxLayout(
-            self
-        )
+        layout_principal = QVBoxLayout(self)
 
         layout_principal.setContentsMargins(
-            26,
-            22,
-            26,
-            26,
+            24,
+            20,
+            24,
+            24,
         )
 
-        layout_principal.setSpacing(18)
+        layout_principal.setSpacing(16)
 
-        # =====================================
+        # ==========================================
         # CABEÇALHO
-        # =====================================
+        # ==========================================
 
         cabecalho = QHBoxLayout()
 
@@ -107,7 +103,7 @@ class TelaMedicos(QWidget):
 
         subtitulo = QLabel(
             "Escolha um profissional, uma data "
-            "e um horário para sua consulta."
+            "e um horário para a consulta."
         )
 
         subtitulo.setObjectName(
@@ -118,16 +114,15 @@ class TelaMedicos(QWidget):
         area_titulo.addWidget(subtitulo)
 
         botao_atualizar = QPushButton(
-            "Atualizar médicos"
+            "Atualizar"
         )
 
         botao_atualizar.setObjectName(
             "botaoSecundario"
         )
 
-        botao_atualizar.setMinimumHeight(
-            40
-        )
+        botao_atualizar.setMinimumHeight(42)
+        botao_atualizar.setMinimumWidth(90)
 
         botao_atualizar.clicked.connect(
             self.recarregar
@@ -135,19 +130,15 @@ class TelaMedicos(QWidget):
 
         cabecalho.addLayout(area_titulo)
         cabecalho.addStretch()
-        cabecalho.addWidget(
-            botao_atualizar
-        )
+        cabecalho.addWidget(botao_atualizar)
 
-        # =====================================
-        # ROLAGEM
-        # =====================================
+        # ==========================================
+        # ÁREA DE ROLAGEM
+        # ==========================================
 
         self.scroll = QScrollArea()
 
-        self.scroll.setWidgetResizable(
-            True
-        )
+        self.scroll.setWidgetResizable(True)
 
         self.scroll.setFrameShape(
             QFrame.NoFrame
@@ -157,13 +148,8 @@ class TelaMedicos(QWidget):
             Qt.ScrollBarAlwaysOff
         )
 
-        layout_principal.addLayout(
-            cabecalho
-        )
-
-        layout_principal.addWidget(
-            self.scroll
-        )
+        layout_principal.addLayout(cabecalho)
+        layout_principal.addWidget(self.scroll)
 
         self.recarregar()
 
@@ -174,22 +160,20 @@ class TelaMedicos(QWidget):
             "containerMedicos"
         )
 
-        self.grid = QGridLayout(
-            container
-        )
+        self.grid = QGridLayout(container)
 
         self.grid.setContentsMargins(
             0,
             0,
             0,
-            12,
+            14,
         )
 
         self.grid.setHorizontalSpacing(18)
         self.grid.setVerticalSpacing(18)
 
         self.grid.setAlignment(
-            Qt.AlignTop | Qt.AlignHCenter
+            Qt.AlignTop | Qt.AlignLeft
         )
 
         self.cards = []
@@ -215,10 +199,7 @@ class TelaMedicos(QWidget):
                 0,
             )
 
-            self.scroll.setWidget(
-                container
-            )
-
+            self.scroll.setWidget(container)
             return
 
         try:
@@ -269,10 +250,7 @@ class TelaMedicos(QWidget):
                 0,
             )
 
-            self.scroll.setWidget(
-                container
-            )
-
+            self.scroll.setWidget(container)
             return
 
         if not medicos:
@@ -294,10 +272,7 @@ class TelaMedicos(QWidget):
                 0,
             )
 
-            self.scroll.setWidget(
-                container
-            )
-
+            self.scroll.setWidget(container)
             return
 
         for medico in medicos:
@@ -314,39 +289,32 @@ class TelaMedicos(QWidget):
             self.reorganizar_cards,
         )
 
-    def criar_card_medico(
-        self,
-        medico,
-    ):
+    def criar_card_medico(self, medico):
         card = QFrame()
-
-        card.setObjectName(
-            "medicoCard"
-        )
+        card.setObjectName("medicoCard")
 
         card.setSizePolicy(
-            QSizePolicy.Expanding,
+            QSizePolicy.Fixed,
             QSizePolicy.Fixed,
         )
 
-        card.setMinimumWidth(275)
-        card.setMaximumWidth(365)
-        card.setMinimumHeight(450)
+        card.setMinimumHeight(500)
+        card.setMaximumHeight(500)
 
         layout_card = QVBoxLayout(card)
 
         layout_card.setContentsMargins(
             18,
-            17,
+            16,
             18,
             18,
         )
 
         layout_card.setSpacing(12)
 
-        # =====================================
+        # ==========================================
         # ESPECIALIDADE
-        # =====================================
+        # ==========================================
 
         cabecalho_card = QHBoxLayout()
 
@@ -366,9 +334,9 @@ class TelaMedicos(QWidget):
 
         cabecalho_card.addStretch()
 
-        # =====================================
+        # ==========================================
         # FOTO
-        # =====================================
+        # ==========================================
 
         area_foto = QFrame()
 
@@ -416,18 +384,16 @@ class TelaMedicos(QWidget):
             if not imagem.isNull():
                 foto.setPixmap(
                     imagem.scaled(
-                        200,
+                        210,
                         155,
                         Qt.KeepAspectRatio,
                         Qt.SmoothTransformation,
                     )
                 )
-
             else:
                 foto.setText(
                     "Foto indisponível"
                 )
-
         else:
             foto.setText(
                 "Foto indisponível"
@@ -435,9 +401,9 @@ class TelaMedicos(QWidget):
 
         layout_foto.addWidget(foto)
 
-        # =====================================
-        # DADOS DO MÉDICO
-        # =====================================
+        # ==========================================
+        # DADOS
+        # ==========================================
 
         nome_completo = (
             f"{medico['nome']} "
@@ -473,11 +439,7 @@ class TelaMedicos(QWidget):
         )
 
         informacao.setWordWrap(True)
-        informacao.setMinimumHeight(40)
-
-        # =====================================
-        # DISPONIBILIDADE
-        # =====================================
+        informacao.setMinimumHeight(42)
 
         painel = QFrame()
 
@@ -485,9 +447,7 @@ class TelaMedicos(QWidget):
             "painelDisponibilidade"
         )
 
-        layout_painel = QVBoxLayout(
-            painel
-        )
+        layout_painel = QVBoxLayout(painel)
 
         layout_painel.setContentsMargins(
             13,
@@ -504,6 +464,8 @@ class TelaMedicos(QWidget):
             "textoDisponibilidade"
         )
 
+        disponibilidade.setWordWrap(True)
+
         layout_painel.addWidget(
             disponibilidade
         )
@@ -516,7 +478,7 @@ class TelaMedicos(QWidget):
             "botaoAgendar"
         )
 
-        botao.setMinimumHeight(46)
+        botao.setMinimumHeight(48)
 
         botao.clicked.connect(
             lambda checked=False,
@@ -527,69 +489,57 @@ class TelaMedicos(QWidget):
             )
         )
 
-        layout_card.addLayout(
-            cabecalho_card
-        )
-
+        layout_card.addLayout(cabecalho_card)
         layout_card.addWidget(area_foto)
         layout_card.addWidget(nome)
-
-        layout_card.addWidget(
-            especialidade
-        )
-
-        layout_card.addWidget(
-            informacao
-        )
-
+        layout_card.addWidget(especialidade)
+        layout_card.addWidget(informacao)
         layout_card.addStretch()
-
         layout_card.addWidget(painel)
         layout_card.addWidget(botao)
 
         return card
 
     def reorganizar_cards(self):
-        if (
-            self.grid is None
-            or not self.cards
-        ):
+        if self.grid is None or not self.cards:
             return
 
-        largura = (
-            self.scroll.viewport().width()
-        )
+        largura = self.scroll.viewport().width()
+        espacamento = self.grid.horizontalSpacing()
 
         if largura >= 1030:
             colunas = 3
-
         elif largura >= 680:
             colunas = 2
-
         else:
             colunas = 1
 
-        if (
-            colunas
-            == self.quantidade_colunas
-        ):
-            return
+        largura_util = (
+            largura
+            - ((colunas - 1) * espacamento)
+            - 8
+        )
+
+        largura_card = largura_util // colunas
+
+        largura_card = max(
+            285,
+            min(360, largura_card),
+        )
 
         self.quantidade_colunas = colunas
 
         while self.grid.count():
             self.grid.takeAt(0)
 
+        self.grid.setAlignment(
+            Qt.AlignTop | Qt.AlignLeft
+        )
+
         for coluna in range(3):
             self.grid.setColumnStretch(
                 coluna,
                 0,
-            )
-
-        for coluna in range(colunas):
-            self.grid.setColumnStretch(
-                coluna,
-                1,
             )
 
         for indice, card in enumerate(
@@ -598,14 +548,15 @@ class TelaMedicos(QWidget):
             linha = indice // colunas
             coluna = indice % colunas
 
+            card.setFixedWidth(
+                largura_card
+            )
+
             self.grid.addWidget(
                 card,
                 linha,
                 coluna,
-                alignment=(
-                    Qt.AlignTop
-                    | Qt.AlignHCenter
-                ),
+                alignment=Qt.AlignTop,
             )
 
     def resizeEvent(self, evento):
@@ -634,6 +585,11 @@ def abrir_agendamento(
     janela.resize(
         570,
         400,
+    )
+
+    aplicar_estilo(
+        janela,
+        "medicos.qss",
     )
 
     layout = QFormLayout(janela)
@@ -817,7 +773,6 @@ def abrir_agendamento(
             ocupado = horario in ocupados
 
             botao.setChecked(False)
-
             botao.setEnabled(
                 not ocupado
             )
@@ -826,7 +781,6 @@ def abrir_agendamento(
                 botao.setText(
                     f"{horario} ocupado"
                 )
-
             else:
                 botao.setText(horario)
 
@@ -841,7 +795,6 @@ def abrir_agendamento(
                 "Escolha um horário",
                 "Selecione um horário disponível.",
             )
-
             return
 
         salvar.setEnabled(False)
@@ -975,6 +928,5 @@ def selecionar_horario(
         )
 
 
-# Compatibilidade com chamadas antigas.
 def tela_medicos(usuario=None):
     return TelaMedicos(usuario)

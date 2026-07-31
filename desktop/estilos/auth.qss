@@ -1,0 +1,39 @@
+QWidget#paginaAuth {
+    background-color: #f4f6f8;
+}
+
+QFrame#cardAuth {
+    background-color: #ffffff;
+    border: 1px solid #e8edf1;
+    border-top: 4px solid #176f6a;
+    border-radius: 14px;
+}
+
+QLabel#marcaAuth {
+    color: #176f6a;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+QLabel#tituloAuth {
+    color: #10263b;
+    font-size: 27px;
+    font-weight: 800;
+}
+
+QLabel#subtituloAuth {
+    color: #617080;
+    font-size: 14px;
+}
+
+QLabel#mensagemErro {
+    color: #a93f46;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QLabel#rodapeAuth {
+    color: #7b8794;
+    font-size: 12px;
+}

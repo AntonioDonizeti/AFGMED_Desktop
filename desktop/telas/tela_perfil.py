@@ -1,504 +1,1057 @@
-import os
+from pathlib import Path
+from shutil import copy2
+from uuid import uuid4
 
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QDateEdit,
-    QFormLayout,
+    QFileDialog,
+    QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 from sqlalchemy.exc import IntegrityError
 
+from desktop.estilos import aplicar_estilo
 from projetoafgmed import app, database
 from projetoafgmed.models import PerfilUsuario, Usuario
 
 
-BASE_DIR = os.path.dirname(
-    os.path.dirname(
-        os.path.dirname(__file__)
-    )
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+PASTA_FOTOS_PERFIL = (
+    BASE_DIR
+    / "projetoafgmed"
+    / "static"
+    / "fotos_perfil"
 )
 
-PASTA_FOTOS_PERFIL = os.path.join(
-    BASE_DIR,
-    "projetoafgmed",
-    "static",
-    "fotos_perfil",
+PASTA_FOTOS_PERFIL.mkdir(
+    parents=True,
+    exist_ok=True,
 )
 
+EXTENSOES_PERMITIDAS = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+}
 
-def tela_perfil(usuario=None):
-    tela = QWidget()
+TAMANHO_MAXIMO_FOTO = 5 * 1024 * 1024
 
-    if usuario is None:
-        layout = QVBoxLayout(tela)
 
-        mensagem = QLabel(
-            "Não foi possível identificar o usuário conectado."
+class TelaPerfil(QWidget):
+    def __init__(self, usuario=None):
+        super().__init__()
+
+        self.usuario = usuario
+        self.usuario_id = (
+            usuario.id
+            if usuario is not None
+            else None
         )
 
-        mensagem.setAlignment(Qt.AlignCenter)
-        mensagem.setStyleSheet("color: #b00020;")
+        self.arquivo_foto_selecionada = None
+        self.remover_foto_pendente = False
+        self.nome_foto_atual = ""
 
-        layout.addWidget(mensagem)
+        self.setObjectName("paginaPerfil")
 
-        return tela
+        aplicar_estilo(
+            self,
+            "perfil.qss",
+        )
 
-    usuario_id = usuario.id
+        self.criar_interface()
 
-    # Busca os dados atuais do banco.
-    with app.app_context():
-        usuario_banco = Usuario.query.filter_by(
-            id=usuario_id
-        ).first()
+        if self.usuario_id is None:
+            self.desativar_tela()
+            return
 
-        if usuario_banco is None:
-            layout = QVBoxLayout(tela)
+        self.carregar_dados()
 
-            mensagem = QLabel(
-                "Usuário não encontrado no banco de dados."
+    # =====================================================
+    # INTERFACE
+    # =====================================================
+
+    def criar_interface(self):
+        layout_externo = QVBoxLayout(self)
+
+        layout_externo.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+
+        self.scroll = QScrollArea()
+        self.scroll.setObjectName("scrollPerfil")
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarAlwaysOff
+        )
+
+        container = QWidget()
+        container.setObjectName("containerPerfil")
+
+        layout_container = QHBoxLayout(container)
+
+        layout_container.setContentsMargins(
+            20,
+            20,
+            20,
+            24,
+        )
+
+        layout_container.setSpacing(20)
+        layout_container.setAlignment(Qt.AlignTop)
+
+        self.criar_painel_resumo()
+        self.criar_painel_dados()
+
+        layout_container.addWidget(
+            self.painel_resumo,
+            0,
+            Qt.AlignTop,
+        )
+
+        layout_container.addWidget(
+            self.painel_dados,
+            1,
+            Qt.AlignTop,
+        )
+
+        self.scroll.setWidget(container)
+        layout_externo.addWidget(self.scroll)
+
+    def criar_painel_resumo(self):
+        self.painel_resumo = QFrame()
+        self.painel_resumo.setObjectName(
+            "painelResumoPerfil"
+        )
+
+        self.painel_resumo.setFixedWidth(250)
+        self.painel_resumo.setMinimumHeight(500)
+
+        layout = QVBoxLayout(
+            self.painel_resumo
+        )
+
+        layout.setContentsMargins(
+            24,
+            24,
+            24,
+            24,
+        )
+
+        layout.setSpacing(12)
+
+        self.foto = QLabel("Sem foto")
+        self.foto.setObjectName("fotoPerfil")
+        self.foto.setFixedSize(175, 175)
+        self.foto.setAlignment(Qt.AlignCenter)
+
+        self.botao_alterar_foto = QPushButton(
+            "Alterar foto"
+        )
+
+        self.botao_alterar_foto.setObjectName(
+            "botaoAlterarFoto"
+        )
+
+        self.botao_alterar_foto.setMinimumHeight(40)
+
+        self.botao_remover_foto = QPushButton(
+            "Remover foto"
+        )
+
+        self.botao_remover_foto.setObjectName(
+            "botaoRemoverFoto"
+        )
+
+        self.botao_remover_foto.setMinimumHeight(38)
+
+        self.nome_resumo = QLabel("Usuário")
+        self.nome_resumo.setObjectName(
+            "nomeResumoPerfil"
+        )
+        self.nome_resumo.setAlignment(Qt.AlignCenter)
+        self.nome_resumo.setWordWrap(True)
+
+        self.email_resumo = QLabel()
+        self.email_resumo.setObjectName(
+            "emailResumoPerfil"
+        )
+        self.email_resumo.setAlignment(Qt.AlignCenter)
+        self.email_resumo.setWordWrap(True)
+
+        self.tipo_resumo = QLabel()
+        self.tipo_resumo.setObjectName(
+            "tipoResumoPerfil"
+        )
+        self.tipo_resumo.setAlignment(Qt.AlignCenter)
+
+        layout.addWidget(
+            self.foto,
+            alignment=Qt.AlignHCenter,
+        )
+
+        layout.addWidget(self.botao_alterar_foto)
+        layout.addWidget(self.botao_remover_foto)
+
+        layout.addSpacing(8)
+        layout.addWidget(self.nome_resumo)
+        layout.addWidget(self.email_resumo)
+        layout.addWidget(self.tipo_resumo)
+        layout.addStretch()
+
+        self.botao_alterar_foto.clicked.connect(
+            self.selecionar_foto
+        )
+
+        self.botao_remover_foto.clicked.connect(
+            self.marcar_remocao_foto
+        )
+
+    def criar_painel_dados(self):
+        self.painel_dados = QFrame()
+        self.painel_dados.setObjectName(
+            "painelDadosPerfil"
+        )
+
+        self.painel_dados.setMinimumWidth(570)
+
+        layout = QVBoxLayout(
+            self.painel_dados
+        )
+
+        layout.setContentsMargins(
+            26,
+            24,
+            26,
+            26,
+        )
+
+        layout.setSpacing(18)
+
+        titulo = QLabel("Dados do perfil")
+        titulo.setObjectName("tituloPerfil")
+
+        subtitulo = QLabel(
+            "Atualize seus dados pessoais, endereço e foto."
+        )
+        subtitulo.setObjectName("subtituloPerfil")
+
+        grupo_pessoais = self.criar_grupo_pessoais()
+        grupo_complementares = (
+            self.criar_grupo_complementares()
+        )
+        grupo_endereco = self.criar_grupo_endereco()
+
+        area_salvar = QHBoxLayout()
+        area_salvar.addStretch()
+
+        self.botao_salvar = QPushButton(
+            "Salvar alterações"
+        )
+
+        self.botao_salvar.setObjectName(
+            "botaoSalvarPerfil"
+        )
+
+        self.botao_salvar.setMinimumHeight(46)
+        self.botao_salvar.setMinimumWidth(180)
+
+        area_salvar.addWidget(self.botao_salvar)
+
+        layout.addWidget(titulo)
+        layout.addWidget(subtitulo)
+        layout.addWidget(grupo_pessoais)
+        layout.addWidget(grupo_complementares)
+        layout.addWidget(grupo_endereco)
+        layout.addLayout(area_salvar)
+
+        self.botao_salvar.clicked.connect(
+            self.salvar_dados
+        )
+
+    def criar_grupo_pessoais(self):
+        grupo = QGroupBox("Dados pessoais")
+        grupo.setObjectName("grupoPerfil")
+
+        grid = QGridLayout(grupo)
+
+        grid.setContentsMargins(
+            18,
+            24,
+            18,
+            18,
+        )
+
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(14)
+
+        self.campo_nome = self.criar_campo()
+        self.campo_sobrenome = self.criar_campo()
+        self.campo_email = self.criar_campo()
+
+        self.campo_nome.setReadOnly(True)
+        self.campo_sobrenome.setReadOnly(True)
+        self.campo_email.setReadOnly(True)
+
+        self.campo_nome.setObjectName(
+            "campoSomenteLeitura"
+        )
+        self.campo_sobrenome.setObjectName(
+            "campoSomenteLeitura"
+        )
+        self.campo_email.setObjectName(
+            "campoSomenteLeitura"
+        )
+
+        self.adicionar_linha(
+            grid,
+            0,
+            "Nome:",
+            self.campo_nome,
+        )
+
+        self.adicionar_linha(
+            grid,
+            1,
+            "Sobrenome:",
+            self.campo_sobrenome,
+        )
+
+        self.adicionar_linha(
+            grid,
+            2,
+            "E-mail:",
+            self.campo_email,
+        )
+
+        grid.setColumnStretch(1, 1)
+
+        return grupo
+
+    def criar_grupo_complementares(self):
+        grupo = QGroupBox(
+            "Dados complementares"
+        )
+
+        grupo.setObjectName("grupoPerfil")
+
+        grid = QGridLayout(grupo)
+
+        grid.setContentsMargins(
+            18,
+            24,
+            18,
+            18,
+        )
+
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(14)
+
+        self.campo_telefone = self.criar_campo()
+        self.campo_cpf = self.criar_campo()
+
+        self.campo_telefone.setPlaceholderText(
+            "Ex.: (11) 99999-9999"
+        )
+        self.campo_telefone.setMaxLength(20)
+
+        self.campo_cpf.setPlaceholderText(
+            "Somente números"
+        )
+        self.campo_cpf.setMaxLength(14)
+
+        self.campo_nascimento = QDateEdit()
+        self.campo_nascimento.setMinimumHeight(42)
+        self.campo_nascimento.setCalendarPopup(True)
+        self.campo_nascimento.setDisplayFormat(
+            "dd/MM/yyyy"
+        )
+        self.campo_nascimento.setMaximumDate(
+            QDate.currentDate()
+        )
+
+        self.adicionar_linha(
+            grid,
+            0,
+            "Telefone:",
+            self.campo_telefone,
+        )
+
+        self.adicionar_linha(
+            grid,
+            1,
+            "CPF:",
+            self.campo_cpf,
+        )
+
+        self.adicionar_linha(
+            grid,
+            2,
+            "Nascimento:",
+            self.campo_nascimento,
+        )
+
+        grid.setColumnStretch(1, 1)
+
+        return grupo
+
+    def criar_grupo_endereco(self):
+        grupo = QGroupBox("Endereço")
+        grupo.setObjectName("grupoPerfil")
+
+        grid = QGridLayout(grupo)
+
+        grid.setContentsMargins(
+            18,
+            24,
+            18,
+            18,
+        )
+
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(14)
+
+        self.campo_endereco = self.criar_campo()
+        self.campo_cidade = self.criar_campo()
+        self.campo_estado = self.criar_campo()
+        self.campo_cep = self.criar_campo()
+
+        self.campo_estado.setMaxLength(2)
+        self.campo_estado.setPlaceholderText(
+            "Ex.: SP"
+        )
+
+        self.campo_cep.setMaxLength(9)
+        self.campo_cep.setPlaceholderText(
+            "Ex.: 00000-000"
+        )
+
+        self.adicionar_linha(
+            grid,
+            0,
+            "Endereço:",
+            self.campo_endereco,
+        )
+
+        self.adicionar_linha(
+            grid,
+            1,
+            "Cidade:",
+            self.campo_cidade,
+        )
+
+        self.adicionar_linha(
+            grid,
+            2,
+            "Estado:",
+            self.campo_estado,
+        )
+
+        self.adicionar_linha(
+            grid,
+            3,
+            "CEP:",
+            self.campo_cep,
+        )
+
+        grid.setColumnStretch(1, 1)
+
+        return grupo
+
+    @staticmethod
+    def criar_campo():
+        campo = QLineEdit()
+        campo.setMinimumHeight(42)
+        return campo
+
+    @staticmethod
+    def adicionar_linha(
+        grid,
+        linha,
+        texto,
+        campo,
+    ):
+        rotulo = QLabel(texto)
+
+        rotulo.setObjectName(
+            "rotuloCampoPerfil"
+        )
+
+        rotulo.setMinimumWidth(85)
+
+        rotulo.setAlignment(
+            Qt.AlignRight | Qt.AlignVCenter
+        )
+
+        grid.addWidget(
+            rotulo,
+            linha,
+            0,
+        )
+
+        grid.addWidget(
+            campo,
+            linha,
+            1,
+        )
+
+    # =====================================================
+    # CARREGAMENTO
+    # =====================================================
+
+    def carregar_dados(self):
+        self.arquivo_foto_selecionada = None
+        self.remover_foto_pendente = False
+
+        try:
+            with app.app_context():
+                usuario_banco = database.session.get(
+                    Usuario,
+                    self.usuario_id,
+                )
+
+                if usuario_banco is None:
+                    raise ValueError(
+                        "Usuário não encontrado."
+                    )
+
+                perfil_banco = (
+                    PerfilUsuario.query.filter_by(
+                        id_usuario=self.usuario_id
+                    ).first()
+                )
+
+                dados_usuario = {
+                    "nome": usuario_banco.nome or "",
+                    "sobrenome": (
+                        usuario_banco.sobrenome or ""
+                    ),
+                    "email": usuario_banco.email or "",
+                    "foto": usuario_banco.foto or "",
+                    "is_admin": bool(
+                        usuario_banco.is_admin
+                    ),
+                    "is_medico": bool(
+                        usuario_banco.is_medico
+                    ),
+                }
+
+                if perfil_banco:
+                    dados_perfil = {
+                        "telefone": (
+                            perfil_banco.telefone or ""
+                        ),
+                        "cpf": perfil_banco.cpf or "",
+                        "data_nascimento": (
+                            perfil_banco.data_nascimento
+                        ),
+                        "endereco": (
+                            perfil_banco.endereco or ""
+                        ),
+                        "cidade": (
+                            perfil_banco.cidade or ""
+                        ),
+                        "estado": (
+                            perfil_banco.estado or ""
+                        ),
+                        "cep": perfil_banco.cep or "",
+                    }
+                else:
+                    dados_perfil = {
+                        "telefone": "",
+                        "cpf": "",
+                        "data_nascimento": None,
+                        "endereco": "",
+                        "cidade": "",
+                        "estado": "",
+                        "cep": "",
+                    }
+
+            self.nome_foto_atual = dados_usuario[
+                "foto"
+            ]
+
+            nome_completo = (
+                f"{dados_usuario['nome']} "
+                f"{dados_usuario['sobrenome']}"
+            ).strip()
+
+            self.nome_resumo.setText(
+                nome_completo or "Usuário"
             )
 
-            mensagem.setAlignment(Qt.AlignCenter)
-            mensagem.setStyleSheet("color: #b00020;")
+            self.email_resumo.setText(
+                dados_usuario["email"]
+            )
 
-            layout.addWidget(mensagem)
+            if dados_usuario["is_admin"]:
+                tipo = "Administrador"
+            elif dados_usuario["is_medico"]:
+                tipo = "Médico"
+            else:
+                tipo = "Paciente"
 
-            return tela
+            self.tipo_resumo.setText(tipo)
 
-        perfil = PerfilUsuario.query.filter_by(
-            id_usuario=usuario_id
-        ).first()
+            self.campo_nome.setText(
+                dados_usuario["nome"]
+            )
+            self.campo_sobrenome.setText(
+                dados_usuario["sobrenome"]
+            )
+            self.campo_email.setText(
+                dados_usuario["email"]
+            )
 
-        usuario_dados = {
-            "nome": usuario_banco.nome or "",
-            "sobrenome": usuario_banco.sobrenome or "",
-            "email": usuario_banco.email or "",
-            "foto": usuario_banco.foto or "",
-            "is_admin": bool(usuario_banco.is_admin),
-            "is_medico": bool(usuario_banco.is_medico),
-        }
+            self.campo_telefone.setText(
+                dados_perfil["telefone"]
+            )
+            self.campo_cpf.setText(
+                dados_perfil["cpf"]
+            )
+            self.campo_endereco.setText(
+                dados_perfil["endereco"]
+            )
+            self.campo_cidade.setText(
+                dados_perfil["cidade"]
+            )
+            self.campo_estado.setText(
+                dados_perfil["estado"]
+            )
+            self.campo_cep.setText(
+                dados_perfil["cep"]
+            )
 
-        if perfil is not None:
-            perfil_dados = {
-                "telefone": perfil.telefone or "",
-                "cpf": perfil.cpf or "",
-                "data_nascimento": perfil.data_nascimento,
-                "endereco": perfil.endereco or "",
-                "cidade": perfil.cidade or "",
-                "estado": perfil.estado or "",
-                "cep": perfil.cep or "",
-            }
-        else:
-            perfil_dados = {
-                "telefone": "",
-                "cpf": "",
-                "data_nascimento": None,
-                "endereco": "",
-                "cidade": "",
-                "estado": "",
-                "cep": "",
-            }
+            data_nascimento = dados_perfil[
+                "data_nascimento"
+            ]
 
-    layout_principal = QHBoxLayout(tela)
-    layout_principal.setContentsMargins(
-        25,
-        25,
-        25,
-        25
-    )
-    layout_principal.setSpacing(30)
+            if data_nascimento:
+                self.campo_nascimento.setDate(
+                    QDate(
+                        data_nascimento.year,
+                        data_nascimento.month,
+                        data_nascimento.day,
+                    )
+                )
+            else:
+                self.campo_nascimento.setDate(
+                    QDate.currentDate().addYears(-18)
+                )
 
-    # ======================================
-    # RESUMO DO PERFIL
-    # ======================================
+            self.exibir_foto_salva(
+                self.nome_foto_atual
+            )
 
-    coluna_perfil = QVBoxLayout()
-    coluna_perfil.setSpacing(10)
+        except Exception as erro:
+            QMessageBox.critical(
+                self,
+                "Erro",
+                (
+                    "Não foi possível carregar o perfil."
+                    f"\n\n{erro}"
+                ),
+            )
 
-    foto = QLabel()
-    foto.setFixedSize(160, 160)
-    foto.setAlignment(Qt.AlignCenter)
+    def recarregar(self):
+        self.carregar_dados()
 
-    foto.setStyleSheet(
-        """
-        QLabel {
-            border: 1px solid #bdbdbd;
-            border-radius: 8px;
-        }
-        """
-    )
-
-    if usuario_dados["foto"]:
-        caminho_foto = os.path.join(
-            PASTA_FOTOS_PERFIL,
-            usuario_dados["foto"]
+    def desativar_tela(self):
+        self.nome_resumo.setText(
+            "Usuário não identificado"
         )
-    else:
-        caminho_foto = ""
 
-    if caminho_foto and os.path.exists(caminho_foto):
-        imagem = QPixmap(caminho_foto)
+        self.botao_alterar_foto.setEnabled(False)
+        self.botao_remover_foto.setEnabled(False)
+        self.botao_salvar.setEnabled(False)
 
-        foto.setPixmap(
+    # =====================================================
+    # FOTO
+    # =====================================================
+
+    def selecionar_foto(self):
+        arquivo, _ = QFileDialog.getOpenFileName(
+            self,
+            "Selecionar foto de perfil",
+            "",
+            (
+                "Imagens (*.png *.jpg *.jpeg *.webp);;"
+                "Todos os arquivos (*.*)"
+            ),
+        )
+
+        if not arquivo:
+            return
+
+        caminho = Path(arquivo)
+        extensao = caminho.suffix.lower()
+
+        if extensao not in EXTENSOES_PERMITIDAS:
+            QMessageBox.warning(
+                self,
+                "Formato inválido",
+                (
+                    "Selecione uma imagem PNG, JPG, "
+                    "JPEG ou WEBP."
+                ),
+            )
+            return
+
+        if caminho.stat().st_size > TAMANHO_MAXIMO_FOTO:
+            QMessageBox.warning(
+                self,
+                "Imagem muito grande",
+                "A imagem deve possuir no máximo 5 MB.",
+            )
+            return
+
+        imagem = QPixmap(str(caminho))
+
+        if imagem.isNull():
+            QMessageBox.warning(
+                self,
+                "Imagem inválida",
+                "Não foi possível abrir a imagem.",
+            )
+            return
+
+        self.arquivo_foto_selecionada = caminho
+        self.remover_foto_pendente = False
+
+        self.mostrar_pixmap(imagem)
+
+    def marcar_remocao_foto(self):
+        possui_foto = bool(
+            self.nome_foto_atual
+            or self.arquivo_foto_selecionada
+        )
+
+        if not possui_foto:
+            QMessageBox.information(
+                self,
+                "Foto",
+                "O perfil já está sem foto.",
+            )
+            return
+
+        resposta = QMessageBox.question(
+            self,
+            "Remover foto",
+            (
+                "Deseja remover a foto de perfil?\n\n"
+                "Clique em Salvar alterações para "
+                "confirmar."
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+
+        if resposta != QMessageBox.Yes:
+            return
+
+        self.arquivo_foto_selecionada = None
+        self.remover_foto_pendente = True
+
+        self.foto.clear()
+        self.foto.setText("Sem foto")
+
+    def exibir_foto_salva(self, nome_arquivo):
+        if not nome_arquivo:
+            self.foto.clear()
+            self.foto.setText("Sem foto")
+            return
+
+        nome_seguro = Path(nome_arquivo).name
+
+        caminho = (
+            PASTA_FOTOS_PERFIL
+            / nome_seguro
+        )
+
+        if not caminho.exists():
+            self.foto.clear()
+            self.foto.setText("Sem foto")
+            return
+
+        imagem = QPixmap(str(caminho))
+
+        if imagem.isNull():
+            self.foto.clear()
+            self.foto.setText("Imagem inválida")
+            return
+
+        self.mostrar_pixmap(imagem)
+
+    def mostrar_pixmap(self, imagem):
+        self.foto.clear()
+
+        self.foto.setPixmap(
             imagem.scaled(
-                150,
-                150,
+                160,
+                160,
                 Qt.KeepAspectRatio,
                 Qt.SmoothTransformation,
             )
         )
-    else:
-        foto.setText("Sem foto")
 
-    nome_completo = (
-        f'{usuario_dados["nome"]} '
-        f'{usuario_dados["sobrenome"]}'
-    ).strip()
+    def copiar_nova_foto(self):
+        origem = self.arquivo_foto_selecionada
 
-    nome = QLabel(
-        nome_completo or "Usuário"
-    )
+        if origem is None:
+            return None, None
 
-    nome.setStyleSheet(
-        "font-size: 20px; font-weight: bold;"
-    )
+        extensao = origem.suffix.lower()
 
-    nome.setWordWrap(True)
+        nome_novo = (
+            f"perfil_{self.usuario_id}_"
+            f"{uuid4().hex[:12]}"
+            f"{extensao}"
+        )
 
-    email_label = QLabel(
-        usuario_dados["email"]
-    )
-    email_label.setWordWrap(True)
+        destino = (
+            PASTA_FOTOS_PERFIL
+            / nome_novo
+        )
 
-    if usuario_dados["is_admin"]:
-        texto_tipo = "Administrador"
-    elif usuario_dados["is_medico"]:
-        texto_tipo = "Médico"
-    else:
-        texto_tipo = "Paciente"
+        copy2(origem, destino)
 
-    tipo = QLabel(texto_tipo)
+        return nome_novo, destino
 
-    coluna_perfil.addWidget(
-        foto,
-        alignment=Qt.AlignHCenter
-    )
+    def apagar_foto_antiga(self, nome_arquivo):
+        if not nome_arquivo:
+            return
 
-    coluna_perfil.addWidget(nome)
-    coluna_perfil.addWidget(email_label)
-    coluna_perfil.addWidget(tipo)
-    coluna_perfil.addStretch()
+        nome_seguro = Path(nome_arquivo).name
 
-    # ======================================
-    # DADOS PESSOAIS
-    # ======================================
+        prefixo = f"perfil_{self.usuario_id}_"
 
-    dados_pessoais = QGroupBox(
-        "Dados pessoais"
-    )
+        if not nome_seguro.startswith(prefixo):
+            return
 
-    layout_pessoais = QFormLayout(
-        dados_pessoais
-    )
+        caminho = (
+            PASTA_FOTOS_PERFIL
+            / nome_seguro
+        )
 
-    nome_campo = QLineEdit(
-        usuario_dados["nome"]
-    )
+        try:
+            if caminho.exists():
+                caminho.unlink()
+        except OSError:
+            pass
 
-    sobrenome_campo = QLineEdit(
-        usuario_dados["sobrenome"]
-    )
+    # =====================================================
+    # SALVAMENTO
+    # =====================================================
 
-    email_campo = QLineEdit(
-        usuario_dados["email"]
-    )
+    def salvar_dados(self):
+        telefone = (
+            self.campo_telefone.text().strip()
+            or None
+        )
 
-    nome_campo.setReadOnly(True)
-    sobrenome_campo.setReadOnly(True)
-    email_campo.setReadOnly(True)
+        cpf = (
+            self.campo_cpf.text().strip()
+            or None
+        )
 
-    layout_pessoais.addRow(
-        "Nome:",
-        nome_campo
-    )
+        endereco = (
+            self.campo_endereco.text().strip()
+            or None
+        )
 
-    layout_pessoais.addRow(
-        "Sobrenome:",
-        sobrenome_campo
-    )
+        cidade = (
+            self.campo_cidade.text().strip()
+            or None
+        )
 
-    layout_pessoais.addRow(
-        "E-mail:",
-        email_campo
-    )
+        estado = (
+            self.campo_estado.text()
+            .strip()
+            .upper()
+            or None
+        )
 
-    # ======================================
-    # DADOS COMPLEMENTARES
-    # ======================================
+        cep = (
+            self.campo_cep.text().strip()
+            or None
+        )
 
-    dados_complementares = QGroupBox(
-        "Dados complementares"
-    )
-
-    layout_complementares = QFormLayout(
-        dados_complementares
-    )
-
-    telefone = QLineEdit(
-        perfil_dados["telefone"]
-    )
-
-    telefone.setPlaceholderText(
-        "Ex.: (11) 99999-9999"
-    )
-
-    telefone.setMaxLength(20)
-
-    cpf = QLineEdit(
-        perfil_dados["cpf"]
-    )
-
-    cpf.setPlaceholderText(
-        "Somente números"
-    )
-
-    cpf.setMaxLength(14)
-
-    nascimento = QDateEdit()
-    nascimento.setCalendarPopup(True)
-    nascimento.setDisplayFormat(
-        "dd/MM/yyyy"
-    )
-
-    nascimento.setMaximumDate(
-        QDate.currentDate()
-    )
-
-    if perfil_dados["data_nascimento"]:
-        data_nascimento = perfil_dados[
-            "data_nascimento"
-        ]
-
-        nascimento.setDate(
-            QDate(
-                data_nascimento.year,
-                data_nascimento.month,
-                data_nascimento.day,
+        if estado and len(estado) != 2:
+            QMessageBox.warning(
+                self,
+                "Estado inválido",
+                "Informe a sigla com dois caracteres.",
             )
-        )
-    else:
-        nascimento.setDate(
-            QDate.currentDate().addYears(-18)
-        )
+            return
 
-    layout_complementares.addRow(
-        "Telefone:",
-        telefone
-    )
+        arquivo_novo = None
+        nome_nova_foto = None
+        nome_foto_anterior = ""
 
-    layout_complementares.addRow(
-        "CPF:",
-        cpf
-    )
-
-    layout_complementares.addRow(
-        "Data de nascimento:",
-        nascimento
-    )
-
-    # ======================================
-    # ENDEREÇO
-    # ======================================
-
-    endereco_box = QGroupBox("Endereço")
-    layout_endereco = QFormLayout(
-        endereco_box
-    )
-
-    endereco = QLineEdit(
-        perfil_dados["endereco"]
-    )
-
-    cidade = QLineEdit(
-        perfil_dados["cidade"]
-    )
-
-    estado = QLineEdit(
-        perfil_dados["estado"]
-    )
-
-    cep = QLineEdit(
-        perfil_dados["cep"]
-    )
-
-    estado.setMaxLength(2)
-    estado.setPlaceholderText("Ex.: SP")
-
-    cep.setMaxLength(9)
-    cep.setPlaceholderText("Ex.: 00000-000")
-
-    layout_endereco.addRow(
-        "Endereço:",
-        endereco
-    )
-
-    layout_endereco.addRow(
-        "Cidade:",
-        cidade
-    )
-
-    layout_endereco.addRow(
-        "Estado:",
-        estado
-    )
-
-    layout_endereco.addRow(
-        "CEP:",
-        cep
-    )
-
-    salvar = QPushButton(
-        "Salvar alterações"
-    )
-
-    salvar.setMinimumHeight(42)
-
-    def salvar_dados():
-        telefone_valor = (
-            telefone.text().strip() or None
-        )
-
-        cpf_valor = (
-            cpf.text().strip() or None
-        )
-
-        endereco_valor = (
-            endereco.text().strip() or None
-        )
-
-        cidade_valor = (
-            cidade.text().strip() or None
-        )
-
-        estado_valor = (
-            estado.text().strip().upper() or None
-        )
-
-        cep_valor = (
-            cep.text().strip() or None
-        )
-
-        salvar.setEnabled(False)
-        salvar.setText("Salvando...")
+        self.botao_salvar.setEnabled(False)
+        self.botao_alterar_foto.setEnabled(False)
+        self.botao_remover_foto.setEnabled(False)
+        self.botao_salvar.setText("Salvando...")
 
         try:
             with app.app_context():
                 try:
-                    # Verifica se o CPF pertence
-                    # a outro usuário.
-                    if cpf_valor:
+                    usuario_banco = database.session.get(
+                        Usuario,
+                        self.usuario_id,
+                    )
+
+                    if usuario_banco is None:
+                        raise ValueError(
+                            "Usuário não encontrado."
+                        )
+
+                    nome_foto_anterior = (
+                        usuario_banco.foto or ""
+                    )
+
+                    if cpf:
                         cpf_existente = (
                             PerfilUsuario.query.filter(
-                                PerfilUsuario.cpf
-                                == cpf_valor,
+                                PerfilUsuario.cpf == cpf,
                                 PerfilUsuario.id_usuario
-                                != usuario_id,
+                                != self.usuario_id,
                             ).first()
                         )
 
-                        if cpf_existente is not None:
+                        if cpf_existente:
                             raise ValueError(
                                 "Este CPF já está cadastrado."
                             )
 
                     perfil_banco = (
                         PerfilUsuario.query.filter_by(
-                            id_usuario=usuario_id
+                            id_usuario=self.usuario_id
                         ).first()
                     )
 
                     if perfil_banco is None:
                         perfil_banco = PerfilUsuario(
-                            id_usuario=usuario_id
+                            id_usuario=self.usuario_id
                         )
 
                         database.session.add(
                             perfil_banco
                         )
 
-                    perfil_banco.telefone = (
-                        telefone_valor
-                    )
-
-                    perfil_banco.cpf = (
-                        cpf_valor
-                    )
-
+                    perfil_banco.telefone = telefone
+                    perfil_banco.cpf = cpf
                     perfil_banco.data_nascimento = (
-                        nascimento.date().toPython()
+                        self.campo_nascimento
+                        .date()
+                        .toPython()
                     )
+                    perfil_banco.endereco = endereco
+                    perfil_banco.cidade = cidade
+                    perfil_banco.estado = estado
+                    perfil_banco.cep = cep
 
-                    perfil_banco.endereco = (
-                        endereco_valor
-                    )
+                    if self.remover_foto_pendente:
+                        usuario_banco.foto = None
 
-                    perfil_banco.cidade = (
-                        cidade_valor
-                    )
+                    elif self.arquivo_foto_selecionada:
+                        (
+                            nome_nova_foto,
+                            arquivo_novo,
+                        ) = self.copiar_nova_foto()
 
-                    perfil_banco.estado = (
-                        estado_valor
-                    )
+                        usuario_banco.foto = (
+                            nome_nova_foto
+                        )
 
-                    perfil_banco.cep = (
-                        cep_valor
-                    )
-
-                    # Grava as mudanças no afgmed.db.
                     database.session.commit()
 
                 except Exception:
                     database.session.rollback()
+
+                    if (
+                        arquivo_novo is not None
+                        and arquivo_novo.exists()
+                    ):
+                        arquivo_novo.unlink()
+
                     raise
 
-            estado.setText(
-                estado_valor or ""
+            if self.remover_foto_pendente:
+                self.apagar_foto_antiga(
+                    nome_foto_anterior
+                )
+
+                self.nome_foto_atual = ""
+
+                if self.usuario is not None:
+                    self.usuario.foto = ""
+
+            elif nome_nova_foto:
+                self.apagar_foto_antiga(
+                    nome_foto_anterior
+                )
+
+                self.nome_foto_atual = (
+                    nome_nova_foto
+                )
+
+                if self.usuario is not None:
+                    self.usuario.foto = (
+                        nome_nova_foto
+                    )
+
+            self.arquivo_foto_selecionada = None
+            self.remover_foto_pendente = False
+
+            self.campo_estado.setText(
+                estado or ""
+            )
+
+            self.exibir_foto_salva(
+                self.nome_foto_atual
             )
 
             QMessageBox.information(
-                tela,
+                self,
                 "AFGMED",
-                "Perfil atualizado!",
+                "Perfil atualizado com sucesso.",
             )
 
         except ValueError as erro:
             QMessageBox.warning(
-                tela,
+                self,
                 "Dados inválidos",
                 str(erro),
             )
 
         except IntegrityError:
             QMessageBox.warning(
-                tela,
+                self,
                 "Dados duplicados",
-                (
-                    "O CPF informado já está sendo "
-                    "usado por outro usuário."
-                ),
+                "O CPF informado já está em uso.",
             )
 
         except Exception as erro:
             QMessageBox.critical(
-                tela,
+                self,
                 "Erro",
                 (
                     "Não foi possível salvar o perfil."
@@ -507,44 +1060,13 @@ def tela_perfil(usuario=None):
             )
 
         finally:
-            salvar.setEnabled(True)
-            salvar.setText(
+            self.botao_salvar.setEnabled(True)
+            self.botao_alterar_foto.setEnabled(True)
+            self.botao_remover_foto.setEnabled(True)
+            self.botao_salvar.setText(
                 "Salvar alterações"
             )
 
-    salvar.clicked.connect(
-        salvar_dados
-    )
 
-    coluna_dados = QVBoxLayout()
-    coluna_dados.setSpacing(15)
-
-    coluna_dados.addWidget(
-        dados_pessoais
-    )
-
-    coluna_dados.addWidget(
-        dados_complementares
-    )
-
-    coluna_dados.addWidget(
-        endereco_box
-    )
-
-    coluna_dados.addWidget(
-        salvar
-    )
-
-    coluna_dados.addStretch()
-
-    layout_principal.addLayout(
-        coluna_perfil,
-        1
-    )
-
-    layout_principal.addLayout(
-        coluna_dados,
-        3
-    )
-
-    return tela
+def tela_perfil(usuario=None):
+    return TelaPerfil(usuario)

@@ -1,128 +1,116 @@
 QWidget#paginaProdutos {
-    background-color: #eef4f8;
+    background-color: #f4f6f8;
 }
 
 QLabel#tituloPagina {
-    color: #082b45;
+    color: #10263b;
     font-size: 25px;
     font-weight: 800;
 }
 
 QLabel#subtituloPagina {
-    color: #607b8b;
+    color: #617080;
     font-size: 14px;
 }
 
 QFrame#produtoCard {
     background-color: #ffffff;
-
-    border: 1px solid #cbdde5;
-    border-radius: 20px;
+    border: 1px solid #e8edf1;
+    border-radius: 14px;
 }
 
 QFrame#areaImagem {
-    background-color: #f4f9fc;
-    border: none;
-    border-radius: 16px;
+    background-color: #f6f8fa;
+    border: 1px solid #e8edf1;
+    border-radius: 10px;
+}
+
+QLabel#fotoProduto {
+    color: #7b8794;
 }
 
 QLabel#nomeProduto {
-    color: #062d51;
+    color: #10263b;
     font-size: 18px;
     font-weight: 800;
 }
 
 QLabel#descricaoProduto {
-    color: #617483;
+    color: #617080;
     font-size: 13px;
 }
 
-QLabel#badgeDisponivel {
-    background-color: #e4f6ed;
-    color: #087c54;
-
-    border: 1px solid #b7e6d1;
-    border-radius: 13px;
-
-    padding: 5px 10px;
-
-    font-size: 12px;
+QLabel#badgeDisponivel,
+QLabel#badgePoucoEstoque,
+QLabel#badgeSemEstoque {
+    padding: 5px 9px;
+    border-radius: 6px;
+    font-size: 11px;
     font-weight: 700;
+}
+
+QLabel#badgeDisponivel {
+    color: #19553e;
+    background-color: #eef8f3;
+    border: 1px solid #b9ddcc;
 }
 
 QLabel#badgePoucoEstoque {
-    background-color: #fff3d9;
-    color: #8a5a00;
-
-    border: 1px solid #eed79a;
-    border-radius: 13px;
-
-    padding: 5px 10px;
-
-    font-size: 12px;
-    font-weight: 700;
+    color: #765019;
+    background-color: #fff7e8;
+    border: 1px solid #ead3a7;
 }
 
 QLabel#badgeSemEstoque {
-    background-color: #fde7eb;
-    color: #a10018;
-
-    border: 1px solid #efbdc6;
-    border-radius: 13px;
-
-    padding: 5px 10px;
-
-    font-size: 12px;
-    font-weight: 700;
+    color: #7d2f35;
+    background-color: #fbf0f1;
+    border: 1px solid #e5bdc0;
 }
 
 QFrame#painelPreco {
-    background-color: #f7fbfd;
-
-    border: 1px solid #dbe8ee;
-    border-radius: 15px;
+    background-color: #f6f8fa;
+    border: 1px solid #e8edf1;
+    border-radius: 9px;
 }
 
 QLabel#rotuloPreco {
-    color: #6a7f8c;
+    color: #7b8794;
     font-size: 11px;
 }
 
 QLabel#valorProduto {
-    color: #10a798;
+    color: #176f6a;
     font-size: 21px;
     font-weight: 800;
 }
 
 QLabel#textoEstoque {
-    color: #123e5d;
+    color: #465564;
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 650;
 }
 
 QPushButton#botaoComprar {
-    background-color: #18aa9b;
-    color: #ffffff;
-
-    border: none;
-    border-radius: 13px;
-
     min-height: 44px;
-    padding: 7px 14px;
-
-    font-size: 14px;
-    font-weight: 800;
+    color: #ffffff;
+    background-color: #176f6a;
+    border-color: #176f6a;
+    font-weight: 750;
 }
 
 QPushButton#botaoComprar:hover {
-    background-color: #0f9185;
+    background-color: #125e5a;
+    border-color: #125e5a;
 }
 
-QPushButton#botaoComprar:pressed {
-    background-color: #087b72;
+QLabel#mensagemVazia {
+    color: #617080;
+    font-size: 16px;
+    padding: 45px;
 }
 
-QPushButton#botaoComprar:disabled {
-    background-color: #bccbd0;
-    color: #eef3f5;
+QLabel#mensagemErro {
+    color: #a93f46;
+    font-size: 14px;
+    padding: 35px;
 }
