@@ -1,0 +1,155 @@
+QWidget#paginaMedicos {
+    background-color: #eef4f8;
+}
+
+QLabel#tituloPagina {
+    color: #082b45;
+    font-size: 25px;
+    font-weight: 800;
+}
+
+QLabel#subtituloPagina {
+    color: #607b8b;
+    font-size: 14px;
+}
+
+QFrame#medicoCard {
+    background-color: #ffffff;
+
+    border: 1px solid #cbdde5;
+    border-radius: 20px;
+}
+
+QFrame#areaFotoMedico {
+    background-color: #f2f8fb;
+    border: none;
+    border-radius: 16px;
+}
+
+QLabel#badgeEspecialidade {
+    background-color: #e5f6f5;
+    color: #087d87;
+
+    border: 1px solid #b9e3e0;
+    border-radius: 13px;
+
+    padding: 5px 10px;
+
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QLabel#nomeMedico {
+    color: #062d51;
+    font-size: 19px;
+    font-weight: 800;
+}
+
+QLabel#especialidadeMedico {
+    color: #13a495;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+QLabel#informacaoMedico {
+    color: #617483;
+    font-size: 13px;
+}
+
+QFrame#painelDisponibilidade {
+    background-color: #f7fbfd;
+
+    border: 1px solid #dbe8ee;
+    border-radius: 14px;
+}
+
+QLabel#textoDisponibilidade {
+    color: #345567;
+    font-size: 12px;
+}
+
+QPushButton#botaoAgendar {
+    background-color: #18aa9b;
+    color: #ffffff;
+
+    border: none;
+    border-radius: 13px;
+
+    min-height: 44px;
+    padding: 7px 14px;
+
+    font-size: 14px;
+    font-weight: 800;
+}
+
+QPushButton#botaoAgendar:hover {
+    background-color: #0f9185;
+}
+
+QPushButton#botaoAgendar:pressed {
+    background-color: #087b72;
+}
+
+QDialog#dialogoAgendamento {
+    background-color: #eef4f8;
+}
+
+QLabel#nomeDialogoMedico {
+    color: #062d51;
+    font-size: 18px;
+    font-weight: 800;
+}
+
+QLabel#especialidadeDialogo {
+    color: #13a495;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+QPushButton#botaoHorario {
+    background-color: #ffffff;
+    color: #0b6071;
+
+    border: 1px solid #bed3dc;
+    border-radius: 9px;
+
+    min-height: 38px;
+    padding: 5px 10px;
+
+    font-weight: 700;
+}
+
+QPushButton#botaoHorario:hover {
+    background-color: #e5f3f5;
+    border-color: #77b9c2;
+}
+
+QPushButton#botaoHorario:checked {
+    background-color: #18aa9b;
+    color: #ffffff;
+    border-color: #18aa9b;
+}
+
+QPushButton#botaoHorario:disabled {
+    background-color: #dce4e8;
+    color: #879aa4;
+    border-color: #d0dadd;
+}
+
+QPushButton#botaoConfirmarConsulta {
+    background-color: #18aa9b;
+    color: #ffffff;
+
+    border: none;
+    border-radius: 11px;
+
+    min-height: 44px;
+    padding: 7px 16px;
+
+    font-size: 14px;
+    font-weight: 800;
+}
+
+QPushButton#botaoConfirmarConsulta:hover {
+    background-color: #0f9185;
+}

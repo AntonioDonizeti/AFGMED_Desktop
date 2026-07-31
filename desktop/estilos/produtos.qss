@@ -1,0 +1,128 @@
+QWidget#paginaProdutos {
+    background-color: #eef4f8;
+}
+
+QLabel#tituloPagina {
+    color: #082b45;
+    font-size: 25px;
+    font-weight: 800;
+}
+
+QLabel#subtituloPagina {
+    color: #607b8b;
+    font-size: 14px;
+}
+
+QFrame#produtoCard {
+    background-color: #ffffff;
+
+    border: 1px solid #cbdde5;
+    border-radius: 20px;
+}
+
+QFrame#areaImagem {
+    background-color: #f4f9fc;
+    border: none;
+    border-radius: 16px;
+}
+
+QLabel#nomeProduto {
+    color: #062d51;
+    font-size: 18px;
+    font-weight: 800;
+}
+
+QLabel#descricaoProduto {
+    color: #617483;
+    font-size: 13px;
+}
+
+QLabel#badgeDisponivel {
+    background-color: #e4f6ed;
+    color: #087c54;
+
+    border: 1px solid #b7e6d1;
+    border-radius: 13px;
+
+    padding: 5px 10px;
+
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QLabel#badgePoucoEstoque {
+    background-color: #fff3d9;
+    color: #8a5a00;
+
+    border: 1px solid #eed79a;
+    border-radius: 13px;
+
+    padding: 5px 10px;
+
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QLabel#badgeSemEstoque {
+    background-color: #fde7eb;
+    color: #a10018;
+
+    border: 1px solid #efbdc6;
+    border-radius: 13px;
+
+    padding: 5px 10px;
+
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QFrame#painelPreco {
+    background-color: #f7fbfd;
+
+    border: 1px solid #dbe8ee;
+    border-radius: 15px;
+}
+
+QLabel#rotuloPreco {
+    color: #6a7f8c;
+    font-size: 11px;
+}
+
+QLabel#valorProduto {
+    color: #10a798;
+    font-size: 21px;
+    font-weight: 800;
+}
+
+QLabel#textoEstoque {
+    color: #123e5d;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QPushButton#botaoComprar {
+    background-color: #18aa9b;
+    color: #ffffff;
+
+    border: none;
+    border-radius: 13px;
+
+    min-height: 44px;
+    padding: 7px 14px;
+
+    font-size: 14px;
+    font-weight: 800;
+}
+
+QPushButton#botaoComprar:hover {
+    background-color: #0f9185;
+}
+
+QPushButton#botaoComprar:pressed {
+    background-color: #087b72;
+}
+
+QPushButton#botaoComprar:disabled {
+    background-color: #bccbd0;
+    color: #eef3f5;
+}
