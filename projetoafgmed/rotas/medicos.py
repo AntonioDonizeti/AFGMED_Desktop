@@ -7,10 +7,10 @@ import os
 from projetoafgmed import app, database
 from projetoafgmed.models import Usuario, Medico, Consulta
 from projetoafgmed.forms import FormMedico
-from projetoafgmed.rotas.utils import (
-    sincronizar_usuario_medico,
+from projetoafgmed.servicos_consultas import status_visual_consulta
+from projetoafgmed.servicos_medicos import (
     medico_logado,
-    status_visual_consulta
+    sincronizar_usuario_medico,
 )
 
 

@@ -4,7 +4,7 @@ from datetime import datetime
 
 from projetoafgmed import app, database
 from projetoafgmed.models import Medico, Consulta
-from projetoafgmed.rotas.utils import status_visual_consulta
+from projetoafgmed.servicos_consultas import status_visual_consulta
 
 
 @app.route("/consultas/<int:medico_id>", methods=["GET", "POST"])

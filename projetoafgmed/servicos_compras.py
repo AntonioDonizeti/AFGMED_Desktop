@@ -14,6 +14,152 @@ class ErroCompra(Exception):
     """Erro relacionado às regras do carrinho, estoque e pedido."""
 
 
+def montar_resposta_carrinho(carrinho):
+    itens = carrinho.itens if carrinho else []
+
+    return {
+        "sucesso": True,
+        "carrinho_id": carrinho.id if carrinho else None,
+        "quantidade": sum(int(item.quantidade or 0) for item in itens),
+        "total": sum(
+            int(item.quantidade or 0) * float(item.preco_unitario or 0)
+            for item in itens
+        ),
+        "itens": [
+            {
+                "id": item.id,
+                "produto": item.produto.nome if item.produto else "Produto removido",
+                "quantidade": int(item.quantidade or 0),
+                "preco_unitario": float(item.preco_unitario or 0),
+                "subtotal": float(
+                    int(item.quantidade or 0) * float(item.preco_unitario or 0)
+                ),
+                "estoque": int(item.produto.estoque or 0) if item.produto else 0,
+            }
+            for item in itens
+        ],
+    }
+
+
+def calcular_total_carrinho(carrinho):
+    if carrinho is None:
+        return 0.0
+
+    return sum(
+        int(item.quantidade or 0) * float(item.preco_unitario or 0)
+        for item in carrinho.itens
+    )
+
+
+def criar_ou_atualizar_pedido(carrinho, endereco, cidade, estado, cep):
+    """Monta ou atualiza o pedido usando os itens atuais do carrinho."""
+    if carrinho is None:
+        raise ErroCompra("Carrinho não encontrado.")
+
+    validar_estoque_carrinho(carrinho)
+
+    total_produtos = calcular_total_carrinho(carrinho)
+    total_entrega = 0.0
+    total = total_produtos + total_entrega
+
+    pedido = Pedido.query.filter_by(id_carrinho=carrinho.id).first()
+
+    if pedido is None:
+        pedido = Pedido(
+            id_usuario=carrinho.id_usuario,
+            id_carrinho=carrinho.id,
+            status="aguardando_pagamento",
+            status_pagamento="pending",
+            endereco=endereco,
+            cidade=cidade,
+            estado=estado,
+            cep=cep,
+            total_produtos=total_produtos,
+            total_entrega=total_entrega,
+            total=total,
+        )
+        database.session.add(pedido)
+        database.session.flush()
+    else:
+        pedido.endereco = endereco
+        pedido.cidade = cidade
+        pedido.estado = estado
+        pedido.cep = cep
+        pedido.total_produtos = total_produtos
+        pedido.total_entrega = total_entrega
+        pedido.total = total
+        pedido.status = "aguardando_pagamento"
+        pedido.status_pagamento = "pending"
+
+    ItemPedido.query.filter_by(id_pedido=pedido.id).delete(
+        synchronize_session=False
+    )
+    database.session.flush()
+
+    for item in carrinho.itens:
+        produto = database.session.get(Produto, item.id_produto)
+
+        database.session.add(
+            ItemPedido(
+                id_pedido=pedido.id,
+                id_produto=produto.id if produto else None,
+                nome_produto=produto.nome if produto else "Produto removido",
+                descricao_produto=produto.descricao if produto else None,
+                foto_produto=produto.foto if produto else None,
+                quantidade=int(item.quantidade or 0),
+                preco_unitario=float(item.preco_unitario or 0),
+                subtotal=(
+                    int(item.quantidade or 0)
+                    * float(item.preco_unitario or 0)
+                ),
+            )
+        )
+
+    return pedido
+
+
+def status_visual_pedido(pedido):
+    status_pagamento = (pedido.status_pagamento or "").lower()
+
+    if pedido.status == "pago" or status_pagamento == "approved":
+        return {
+            "classe": "bg-success",
+            "icone": "bi-check-circle",
+            "texto": "Pagamento aprovado",
+            "descricao": "Pedido confirmado e em preparação.",
+        }
+
+    if pedido.status == "aguardando_pagamento" or status_pagamento in {
+        "pending",
+        "pendente",
+        "in_process",
+    }:
+        return {
+            "classe": "bg-warning text-dark",
+            "icone": "bi-clock-history",
+            "texto": "Aguardando pagamento",
+            "descricao": "O pagamento ainda está pendente de confirmação.",
+        }
+
+    if pedido.status in {"falha", "cancelado"} or status_pagamento in {
+        "rejected",
+        "cancelled",
+    }:
+        return {
+            "classe": "bg-danger",
+            "icone": "bi-x-circle",
+            "texto": "Pagamento não aprovado",
+            "descricao": "O pagamento não foi concluído.",
+        }
+
+    return {
+        "classe": "bg-secondary",
+        "icone": "bi-info-circle",
+        "texto": "Status em análise",
+        "descricao": "Estamos verificando o status do pedido.",
+    }
+
+
 def obter_carrinho_ativo(usuario_id):
     return (
         Carrinho.query.filter_by(
@@ -226,13 +372,6 @@ def finalizar_pedido_local(usuario_id, endereco, cidade, estado, cep):
         carrinho = obter_carrinho_ativo(usuario_id)
         validar_estoque_carrinho(carrinho)
 
-        total_produtos = sum(
-            float(item.preco_unitario or 0) * int(item.quantidade or 0)
-            for item in carrinho.itens
-        )
-        total_entrega = 0.0
-        total = total_produtos + total_entrega
-
         perfil = PerfilUsuario.query.filter_by(
             id_usuario=usuario_id
         ).first()
@@ -265,70 +404,22 @@ def finalizar_pedido_local(usuario_id, endereco, cidade, estado, cep):
             entrega.estado = estado
             entrega.cep = cep
 
-        pedido = Pedido.query.filter_by(
-            id_carrinho=carrinho.id
-        ).first()
-
-        if pedido is None:
-            pedido = Pedido(
-                id_usuario=usuario_id,
-                id_carrinho=carrinho.id,
-                endereco=endereco,
-                cidade=cidade,
-                estado=estado,
-                cep=cep,
-                total_produtos=total_produtos,
-                total_entrega=total_entrega,
-                total=total,
-                status="aguardando_pagamento",
-                status_pagamento="pending",
-            )
-            database.session.add(pedido)
-            database.session.flush()
-        else:
-            pedido.endereco = endereco
-            pedido.cidade = cidade
-            pedido.estado = estado
-            pedido.cep = cep
-            pedido.total_produtos = total_produtos
-            pedido.total_entrega = total_entrega
-            pedido.total = total
-            pedido.status = "aguardando_pagamento"
-            pedido.status_pagamento = "pending"
-
-        ItemPedido.query.filter_by(id_pedido=pedido.id).delete(
-            synchronize_session=False
+        pedido = criar_ou_atualizar_pedido(
+            carrinho=carrinho,
+            endereco=endereco,
+            cidade=cidade,
+            estado=estado,
+            cep=cep,
         )
-        database.session.flush()
-
-        for item in carrinho.itens:
-            produto = database.session.get(Produto, item.id_produto)
-
-            database.session.add(
-                ItemPedido(
-                    id_pedido=pedido.id,
-                    id_produto=produto.id if produto else None,
-                    nome_produto=(
-                        produto.nome if produto else "Produto removido"
-                    ),
-                    descricao_produto=(produto.descricao if produto else None),
-                    foto_produto=(produto.foto if produto else None),
-                    quantidade=int(item.quantidade or 0),
-                    preco_unitario=float(item.preco_unitario or 0),
-                    subtotal=(
-                        int(item.quantidade or 0)
-                        * float(item.preco_unitario or 0)
-                    ),
-                )
-            )
 
         carrinho.status = "aguardando_pagamento"
         carrinho.status_pagamento = "pending"
 
-        # O estoque continua intacto até o Mercado Pago retornar approved.
+        # O estoque continua intacto até o pagamento ser aprovado.
         database.session.commit()
         return pedido.id
 
     except Exception:
         database.session.rollback()
         raise
+

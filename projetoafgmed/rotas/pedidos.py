@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 
 from projetoafgmed import app
 from projetoafgmed.models import Pedido
-from projetoafgmed.rotas.utils import status_visual_pedido
+from projetoafgmed.servicos_compras import status_visual_pedido
 
 
 @app.route("/minhas-compras")

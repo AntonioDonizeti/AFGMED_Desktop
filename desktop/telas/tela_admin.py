@@ -33,7 +33,7 @@ from sqlalchemy import func
 from desktop.estilos import aplicar_estilo
 from projetoafgmed import app, database
 from projetoafgmed.models import Consulta, Medico, Pedido, Produto, Usuario
-from projetoafgmed.rotas.utils import sincronizar_usuario_medico
+from projetoafgmed.servicos_medicos import sincronizar_usuario_medico
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -541,23 +541,6 @@ class TelaAdminProdutos(TelaAdminBase):
                 if produto is None:
                     raise ValueError("Produto não encontrado.")
                 produto.ativo = not bool(produto.ativo)
-                database.session.commit()
-            self.recarregar()
-        except Exception as erro:
-            database.session.rollback()
-            QMessageBox.critical(self, "Erro", str(erro))
-
-    def alternar_destaque(self):
-        produto_id = self.id_selecionado(self.tabela)
-        if produto_id is None:
-            QMessageBox.information(self, "Selecione", "Selecione um produto.")
-            return
-        try:
-            with app.app_context():
-                produto = database.session.get(Produto, produto_id)
-                if produto is None:
-                    raise ValueError("Produto não encontrado.")
-                produto.destaque_home = not bool(produto.destaque_home)
                 database.session.commit()
             self.recarregar()
         except Exception as erro:

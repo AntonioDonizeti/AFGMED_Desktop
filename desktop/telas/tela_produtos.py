@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -48,8 +49,11 @@ class TelaProdutos(QWidget):
 
         self.usuario = usuario
         self.usuario_id = usuario.id if usuario is not None else None
+        self.produtos = []
         self.cards = []
         self.grid = None
+        self.container = None
+        self.mensagem_filtro = None
         self.quantidade_colunas = 0
 
         self.setObjectName("paginaProdutos")
@@ -74,11 +78,20 @@ class TelaProdutos(QWidget):
         area_titulo.addWidget(titulo)
         area_titulo.addWidget(subtitulo)
 
+        self.busca = QLineEdit()
+        self.busca.setObjectName("campoBuscaProdutos")
+        self.busca.setPlaceholderText("Buscar produto pelo nome...")
+        self.busca.setClearButtonEnabled(True)
+        self.busca.setMinimumWidth(280)
+        self.busca.setMaximumWidth(390)
+        self.busca.textChanged.connect(self.aplicar_filtro)
+
         atualizar = QPushButton("Atualizar")
         atualizar.clicked.connect(self.recarregar)
 
         cabecalho.addLayout(area_titulo)
         cabecalho.addStretch()
+        cabecalho.addWidget(self.busca)
         cabecalho.addWidget(atualizar)
 
         self.scroll = QScrollArea()
@@ -91,15 +104,19 @@ class TelaProdutos(QWidget):
 
         self.recarregar()
 
-    def recarregar(self):
-        container = QWidget()
-        self.grid = QGridLayout(container)
+    def _criar_container(self):
+        self.container = QWidget()
+        self.grid = QGridLayout(self.container)
         self.grid.setContentsMargins(0, 0, 0, 12)
         self.grid.setHorizontalSpacing(18)
         self.grid.setVerticalSpacing(18)
-        self.grid.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        self.grid.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.scroll.setWidget(self.container)
 
+    def recarregar(self):
+        self._criar_container()
         self.cards = []
+        self.produtos = []
         self.quantidade_colunas = 0
 
         try:
@@ -110,7 +127,7 @@ class TelaProdutos(QWidget):
                     .all()
                 )
 
-                produtos = [
+                self.produtos = [
                     {
                         "id": produto.id,
                         "nome": produto.nome or "",
@@ -122,32 +139,68 @@ class TelaProdutos(QWidget):
                     for produto in produtos_banco
                 ]
         except Exception as erro:
-            mensagem = QLabel(
-                "Não foi possível carregar os produtos.\n\n" + str(erro)
+            self._mostrar_mensagem(
+                "Não foi possível carregar os produtos.\n\n" + str(erro),
+                "mensagemErro",
             )
-            mensagem.setObjectName("mensagemErro")
-            mensagem.setWordWrap(True)
-            mensagem.setAlignment(Qt.AlignCenter)
-            self.grid.addWidget(mensagem, 0, 0)
-            self.scroll.setWidget(container)
             return
 
-        if not produtos:
-            mensagem = QLabel("Nenhum produto disponível no momento.")
-            mensagem.setObjectName("mensagemVazia")
-            mensagem.setAlignment(Qt.AlignCenter)
-            self.grid.addWidget(mensagem, 0, 0)
-            self.scroll.setWidget(container)
+        if not self.produtos:
+            self._mostrar_mensagem(
+                "Nenhum produto disponível no momento.",
+                "mensagemVazia",
+            )
             return
 
-        for produto in produtos:
-            self.cards.append(self.criar_card_produto(produto))
+        for produto in self.produtos:
+            card = self.criar_card_produto(produto)
+            card.setProperty("nomeBusca", produto["nome"].casefold())
+            self.cards.append(card)
 
-        self.scroll.setWidget(container)
-        QTimer.singleShot(0, self.reorganizar_cards)
+        self.aplicar_filtro()
+
+    def _mostrar_mensagem(self, texto, object_name="mensagemVazia"):
+        if self.grid is None:
+            self._criar_container()
+
+        mensagem = QLabel(texto)
+        mensagem.setObjectName(object_name)
+        mensagem.setWordWrap(True)
+        mensagem.setAlignment(Qt.AlignCenter)
+        self.grid.addWidget(mensagem, 0, 0)
+        self.mensagem_filtro = mensagem
+
+    def aplicar_filtro(self):
+        if self.grid is None:
+            return
+
+        termo = self.busca.text().strip().casefold()
+
+        if self.mensagem_filtro is not None:
+            self.mensagem_filtro.deleteLater()
+            self.mensagem_filtro = None
+
+        cards_visiveis = []
+
+        for card in self.cards:
+            nome = str(card.property("nomeBusca") or "")
+            visivel = not termo or termo in nome
+
+            card.setVisible(False)
+
+            if visivel:
+                cards_visiveis.append(card)
+
+        self.reorganizar_cards(cards_visiveis)
+
+        if self.cards and not cards_visiveis:
+            self._mostrar_mensagem(
+                "Nenhum produto encontrado com esse nome.",
+                "mensagemVazia",
+            )
 
     def criar_card_produto(self, produto):
-        card = QFrame()
+        card = QFrame(self.container)
         card.setObjectName("produtoCard")
         card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         card.setMinimumWidth(270)
@@ -259,7 +312,9 @@ class TelaProdutos(QWidget):
             botao.setToolTip("Usuário não identificado.")
         elif usuario_medico and not usuario_admin:
             botao.setEnabled(False)
-            botao.setToolTip("Usuários médicos não podem comprar como pacientes.")
+            botao.setToolTip(
+                "Usuários médicos não podem comprar como pacientes."
+            )
         elif produto["estoque"] <= 0:
             botao.setEnabled(False)
             botao.setText("Produto indisponível")
@@ -280,8 +335,19 @@ class TelaProdutos(QWidget):
 
         return card
 
-    def reorganizar_cards(self):
-        if self.grid is None or not self.cards:
+    def reorganizar_cards(self, cards=None):
+        if self.grid is None:
+            return
+
+        cards = self.cards if cards is None else cards
+
+        while self.grid.count():
+            item = self.grid.takeAt(0)
+            widget = item.widget()
+            if widget is not None and widget not in self.cards:
+                widget.deleteLater()
+
+        if not cards:
             return
 
         largura_disponivel = self.scroll.viewport().width()
@@ -294,54 +360,25 @@ class TelaProdutos(QWidget):
         else:
             colunas = 1
 
-        largura_util = (
-                largura_disponivel
-                - ((colunas - 1) * espacamento)
-                - 8
-        )
-
-        largura_card = largura_util // colunas
-
-        largura_card = max(
-            275,
-            min(360, largura_card),
-        )
-
+        largura_util = largura_disponivel - ((colunas - 1) * espacamento) - 8
+        largura_card = max(275, min(360, largura_util // colunas))
         self.quantidade_colunas = colunas
 
-        while self.grid.count():
-            self.grid.takeAt(0)
-
-        # Impede que as colunas sejam esticadas.
         for coluna in range(3):
-            self.grid.setColumnStretch(
-                coluna,
-                0,
-            )
+            self.grid.setColumnStretch(coluna, 0)
 
-        # Cards começam pela esquerda, sem grandes vãos.
-        self.grid.setAlignment(
-            Qt.AlignTop | Qt.AlignLeft
-        )
+        self.grid.setAlignment(Qt.AlignTop | Qt.AlignLeft)
 
-        for indice, card in enumerate(self.cards):
+        for indice, card in enumerate(cards):
             linha = indice // colunas
             coluna = indice % colunas
-
-            card.setFixedWidth(
-                largura_card
-            )
-
-            self.grid.addWidget(
-                card,
-                linha,
-                coluna,
-                alignment=Qt.AlignTop,
-            )
+            card.setFixedWidth(largura_card)
+            card.setVisible(True)
+            self.grid.addWidget(card, linha, coluna, alignment=Qt.AlignTop)
 
     def resizeEvent(self, evento):
         super().resizeEvent(evento)
-        QTimer.singleShot(0, self.reorganizar_cards)
+        QTimer.singleShot(0, self.aplicar_filtro)
 
     def adicionar_ao_carrinho(self, produto_id):
         try:

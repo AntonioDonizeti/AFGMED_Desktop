@@ -16,12 +16,16 @@ from projetoafgmed.models import (
     PerfilUsuario,
     Pedido
 )
-from projetoafgmed.rotas.utils import (
+from projetoafgmed.servicos_compras import (
+    ErroCompra,
     criar_ou_atualizar_pedido,
+    status_visual_pedido,
+)
+from projetoafgmed.servicos_pagamento import (
+    ErroPagamento,
     criar_preferencia_mercado_pago,
-    atualizar_carrinho_por_pagamento,
     obter_pedido_por_referencia,
-    status_visual_pedido
+    sincronizar_pagamento_por_id,
 )
 
 
@@ -189,22 +193,18 @@ def entrega(id_carrinho):
 
         database.session.commit()
 
-        preference, erro_mp = (
-            criar_preferencia_mercado_pago(pedido)
-        )
+        try:
+            preference = criar_preferencia_mercado_pago(pedido.id)
+        except ErroPagamento as erro_mp:
+            database.session.rollback()
 
-        if not preference:
             carrinho.status = "ativo"
             carrinho.status_pagamento = "pendente"
-
             pedido.status = "falha"
             pedido.status_pagamento = "rejected"
-
             database.session.commit()
 
-            mensagem_erro = (
-                f"Erro Mercado Pago: {erro_mp}"
-            )
+            mensagem_erro = f"Erro Mercado Pago: {erro_mp}"
 
             if (
                 request.headers.get("X-Requested-With")
@@ -212,25 +212,15 @@ def entrega(id_carrinho):
             ):
                 return jsonify({
                     "sucesso": False,
-                    "mensagem": mensagem_erro
+                    "mensagem": mensagem_erro,
                 }), 400
 
-            flash(
-                mensagem_erro,
-                "danger"
-            )
-
+            flash(mensagem_erro, "danger")
             return redirect(
-                url_for(
-                    "entrega",
-                    id_carrinho=carrinho.id
-                )
+                url_for("entrega", id_carrinho=carrinho.id)
             )
 
-        link_pagamento = (
-            preference.get("init_point")
-            or preference.get("sandbox_init_point")
-        )
+        link_pagamento = preference.get("init_point")
 
         if not link_pagamento:
             carrinho.status = "ativo"
@@ -267,24 +257,6 @@ def entrega(id_carrinho):
                 )
             )
 
-        pedido.mercado_pago_preference_id = (
-            preference.get("id")
-        )
-
-        pedido.mercado_pago_init_point = (
-            link_pagamento
-        )
-
-        carrinho.mercado_pago_preference_id = (
-            preference.get("id")
-        )
-
-        carrinho.mercado_pago_init_point = (
-            link_pagamento
-        )
-
-        database.session.commit()
-
         if (
             request.headers.get("X-Requested-With")
             == "XMLHttpRequest"
@@ -320,9 +292,15 @@ def pagamento_sucesso():
     pedido = None
 
     if payment_id:
-        pagamento = atualizar_carrinho_por_pagamento(
-            payment_id
-        )
+        try:
+            pagamento = sincronizar_pagamento_por_id(payment_id)
+        except ErroPagamento as erro:
+            current_app.logger.exception(
+                "Falha ao sincronizar o pagamento %s: %s",
+                payment_id,
+                erro,
+            )
+            pagamento = None
 
         if (
             pagamento
@@ -406,9 +384,15 @@ def pagamento_pendente():
     pedido = None
 
     if payment_id:
-        pagamento = atualizar_carrinho_por_pagamento(
-            payment_id
-        )
+        try:
+            pagamento = sincronizar_pagamento_por_id(payment_id)
+        except ErroPagamento as erro:
+            current_app.logger.exception(
+                "Falha ao sincronizar o pagamento %s: %s",
+                payment_id,
+                erro,
+            )
+            pagamento = None
 
         if (
             pagamento
@@ -538,8 +522,14 @@ def webhook_mercado_pago():
     if not pagamento_id:
         return "", 200
 
-    atualizar_carrinho_por_pagamento(
-        pagamento_id
-    )
+    try:
+        sincronizar_pagamento_por_id(pagamento_id)
+    except ErroPagamento as erro:
+        current_app.logger.exception(
+            "Falha no webhook do pagamento %s: %s",
+            pagamento_id,
+            erro,
+        )
+        return jsonify({"erro": str(erro)}), 500
 
     return "", 200

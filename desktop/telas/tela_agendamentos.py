@@ -16,6 +16,8 @@ from desktop.estilos import aplicar_estilo
 from projetoafgmed import app, database
 from projetoafgmed.models import Consulta
 
+from .tela_medicos import abrir_agendamento
+
 
 class TelaAgendamentos(QWidget):
     def __init__(self, usuario):
@@ -155,6 +157,15 @@ class TelaAgendamentos(QWidget):
         acoes.addWidget(status)
 
         if status_valor == "agendada":
+            reagendar = QPushButton("Reagendar")
+            reagendar.setObjectName("botaoReagendar")
+            reagendar.clicked.connect(
+                lambda checked=False, consulta_id=consulta["id"]: (
+                    self.reagendar_consulta(consulta_id)
+                )
+            )
+            acoes.addWidget(reagendar)
+
             cancelar = QPushButton("Cancelar consulta")
             cancelar.setObjectName("botaoPerigo")
             cancelar.clicked.connect(
@@ -173,6 +184,48 @@ class TelaAgendamentos(QWidget):
         layout.addLayout(acoes)
 
         return card
+
+    def reagendar_consulta(self, consulta_id):
+        try:
+            with app.app_context():
+                consulta = database.session.get(Consulta, consulta_id)
+
+                if consulta is None:
+                    raise ValueError("Consulta não encontrada.")
+
+                if consulta.usuario_id != self.usuario_id:
+                    raise ValueError("Você não pode reagendar esta consulta.")
+
+                if consulta.status != "agendada":
+                    raise ValueError(
+                        "Apenas consultas agendadas podem ser reagendadas."
+                    )
+
+                medico = consulta.medico
+
+                if medico is None:
+                    raise ValueError("O médico desta consulta não foi encontrado.")
+
+                dados_medico = {
+                    "id": medico.id,
+                    "nome": medico.nome or "",
+                    "sobrenome": medico.sobrenome or "",
+                    "especialidade": medico.especialidade or "",
+                    "foto": medico.foto or "",
+                }
+
+            alterado = abrir_agendamento(
+                usuario_id=self.usuario_id,
+                medico=dados_medico,
+                consulta_id=consulta_id,
+                parent=self,
+            )
+
+            if alterado:
+                self.recarregar()
+
+        except Exception as erro:
+            QMessageBox.critical(self, "Erro", str(erro))
 
     def cancelar_consulta(self, consulta_id):
         resposta = QMessageBox.question(

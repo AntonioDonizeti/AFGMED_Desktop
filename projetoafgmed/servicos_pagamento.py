@@ -23,7 +23,7 @@ def _sdk():
     return mercadopago.SDK(access_token)
 
 
-def _pedido_por_referencia(external_reference):
+def obter_pedido_por_referencia(external_reference):
     if not external_reference:
         return None
 
@@ -132,7 +132,7 @@ def criar_preferencia_mercado_pago(pedido_id):
 
 def aplicar_pagamento_ao_pedido(pagamento):
     external_reference = pagamento.get("external_reference")
-    pedido = _pedido_por_referencia(external_reference)
+    pedido = obter_pedido_por_referencia(external_reference)
 
     if pedido is None:
         return pagamento
