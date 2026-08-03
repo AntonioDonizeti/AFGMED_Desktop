@@ -24,6 +24,29 @@ QLabel#usuarioHome {
     font-weight: 650;
 }
 
+QLabel#badgePerfilHome {
+    min-width: 78px;
+    padding: 5px 10px;
+    color: #dcefeb;
+    background-color: rgba(23, 111, 106, 0.28);
+    border: 1px solid rgba(99, 201, 190, 0.46);
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 750;
+}
+
+QLabel#badgePerfilHome[tipoPerfil="admin"] {
+    color: #fff1c9;
+    background-color: rgba(209, 154, 37, 0.22);
+    border-color: rgba(234, 195, 104, 0.48);
+}
+
+QLabel#badgePerfilHome[tipoPerfil="medico"] {
+    color: #d8eaff;
+    background-color: rgba(47, 117, 200, 0.24);
+    border-color: rgba(118, 174, 236, 0.48);
+}
+
 QPushButton#botaoLogout {
     min-height: 34px;
     color: #ffffff;

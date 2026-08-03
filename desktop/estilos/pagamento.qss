@@ -1,51 +1,66 @@
-QDialog#dialogoFinalizar,
-QDialog#dialogoPagamento {
-    background-color: #f4f6f8;
-}
-
-QFrame#cardDialogo {
-    background-color: #ffffff;
-    border: 1px solid #e8edf1;
-    border-radius: 13px;
-}
-
-QLabel#tituloDialogo {
-    color: #10263b;
-    font-size: 22px;
-    font-weight: 800;
-}
-
-QLabel#subtituloDialogo {
-    color: #617080;
-}
-
-QLabel#totalDialogo {
-    color: #10263b;
-    font-size: 22px;
-    font-weight: 800;
-}
-
-QLabel#statusPagamento {
-    padding: 8px 11px;
-    border-radius: 7px;
+QLabel#rotuloCampo {
+    color: #354657;
     font-size: 13px;
-    font-weight: 750;
+    font-weight: 700;
 }
 
-QLabel#statusPagamento[tipoStatus="aprovado"] {
+QPushButton#botaoBuscarCep {
+    min-width: 112px;
+    color: #17344f;
+    background-color: #edf3f7;
+    border: 1px solid #b9c7d2;
+}
+
+QPushButton#botaoBuscarCep:hover {
+    color: #ffffff;
+    background-color: #17344f;
+    border-color: #17344f;
+}
+
+QPushButton#botaoBuscarCep:disabled {
+    color: #7b8792;
+    background-color: #e5eaee;
+    border-color: #d0d8de;
+}
+
+QLabel#statusCep {
+    padding: 7px 10px;
+    border-radius: 7px;
+    font-size: 12px;
+}
+
+QLabel#statusCep[tipoStatusCep="informacao"],
+QLabel#statusCep[tipoStatusCep="carregando"] {
+    color: #40566b;
+    background-color: #f0f5f8;
+    border: 1px solid #cedbe4;
+}
+
+QLabel#statusCep[tipoStatusCep="sucesso"] {
     color: #19553e;
     background-color: #eef8f3;
     border: 1px solid #b9ddcc;
 }
 
-QLabel#statusPagamento[tipoStatus="pendente"] {
-    color: #765019;
-    background-color: #fff7e8;
-    border: 1px solid #ead3a7;
-}
-
-QLabel#statusPagamento[tipoStatus="falha"] {
+QLabel#statusCep[tipoStatusCep="erro"] {
     color: #7d2f35;
     background-color: #fbf0f1;
     border: 1px solid #e5bdc0;
+}
+
+QFrame#resumoPedido {
+    background-color: #f5f8fa;
+    border: 1px solid #dfe7ed;
+    border-radius: 9px;
+}
+
+QLabel#rotuloTotalDialogo {
+    color: #617080;
+    font-size: 13px;
+    font-weight: 650;
+}
+
+QLineEdit#campoEstado {
+    min-width: 82px;
+    max-width: 110px;
 }

@@ -1,0 +1,128 @@
+QWidget#paginaDashboard {
+    background-color: #f4f6f8;
+}
+
+QLabel#tituloDashboard {
+    color: #10263b;
+    font-size: 25px;
+    font-weight: 800;
+}
+
+QLabel#subtituloDashboard {
+    color: #687887;
+    font-size: 13px;
+}
+
+QPushButton#botaoAtualizarDashboard {
+    min-width: 125px;
+}
+
+QFrame#cardMetrica {
+    min-width: 170px;
+    background-color: #ffffff;
+    border: 1px solid #e2e8ed;
+    border-left: 5px solid #7b8794;
+    border-radius: 13px;
+}
+
+QFrame#cardMetrica[tipo="azul"] {
+    border-left-color: #2f75c8;
+}
+
+QFrame#cardMetrica[tipo="verde"] {
+    border-left-color: #176f6a;
+}
+
+QFrame#cardMetrica[tipo="amarelo"] {
+    border-left-color: #d19a25;
+}
+
+QFrame#cardMetrica[tipo="vermelho"] {
+    border-left-color: #a93f46;
+}
+
+QLabel#rotuloMetrica {
+    color: #687887;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+QLabel#valorMetrica {
+    color: #10263b;
+    font-size: 27px;
+    font-weight: 850;
+}
+
+QLabel#descricaoMetrica {
+    color: #7b8794;
+    font-size: 11px;
+}
+
+QFrame#secaoDashboard {
+    background-color: #ffffff;
+    border: 1px solid #e2e8ed;
+    border-radius: 14px;
+}
+
+QLabel#tituloSecaoDashboard {
+    color: #10263b;
+    font-size: 16px;
+    font-weight: 800;
+}
+
+QLabel#subtituloSecaoDashboard {
+    color: #758493;
+    font-size: 12px;
+}
+
+QPushButton#botaoAcaoDashboard,
+QPushButton#botaoAcaoPrincipal {
+    min-height: 42px;
+}
+
+QPushButton#botaoAcaoPrincipal {
+    color: #ffffff;
+    background-color: #176f6a;
+    border-color: #176f6a;
+}
+
+QPushButton#botaoAcaoPrincipal:hover {
+    background-color: #125e5a;
+    border-color: #125e5a;
+}
+
+QFrame#linhaInfoDashboard {
+    background-color: #f8fafb;
+    border: 1px solid #e8edf1;
+    border-radius: 10px;
+}
+
+QLabel#tituloLinhaDashboard {
+    color: #17344f;
+    font-size: 13px;
+    font-weight: 750;
+}
+
+QLabel#detalheLinhaDashboard {
+    color: #71808e;
+    font-size: 11px;
+}
+
+QLabel#badgeDashboard {
+    min-width: 72px;
+    padding: 5px 9px;
+    color: #176f6a;
+    background-color: #e8f5f3;
+    border: 1px solid #b8ded9;
+    border-radius: 11px;
+    font-size: 10px;
+    font-weight: 750;
+}
+
+QLabel#mensagemErroDashboard {
+    padding: 15px;
+    color: #a93f46;
+    background-color: #fff5f5;
+    border: 1px solid #efd0d2;
+    border-radius: 10px;
+}
