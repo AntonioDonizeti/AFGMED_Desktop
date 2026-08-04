@@ -3,6 +3,8 @@ from flask_login import current_user
 from projetoafgmed import bcrypt, database
 from projetoafgmed.models import Medico, Usuario
 
+# Senha utilizada exclusivamente em ambiente acadêmico/demonstração.
+# Em produção, deve ser substituída por senha temporária aleatória.
 
 SENHA_PADRAO_MEDICO = "123456"
 
