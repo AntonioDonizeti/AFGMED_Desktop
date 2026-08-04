@@ -4,6 +4,20 @@ from flask import current_app
 from projetoafgmed import database
 from projetoafgmed.models import Pedido
 from projetoafgmed.servicos_compras import ErroCompra, baixar_estoque_pedido
+from projetoafgmed.status import (
+    CARRINHO_AGUARDANDO_PAGAMENTO,
+    CARRINHO_ATIVO,
+    CARRINHO_FINALIZADO,
+    PAGAMENTO_APROVADO,
+    PAGAMENTO_PENDENTE,
+    PAGAMENTOS_NAO_APROVADOS,
+    PAGAMENTOS_PENDENTES,
+    PEDIDO_AGUARDANDO_PAGAMENTO,
+    PEDIDO_FALHA,
+    PEDIDO_PAGO,
+    PEDIDO_PAGO_PENDENCIA_ESTOQUE,
+    normalizar_status_pagamento,
+)
 
 
 class ErroPagamento(Exception):
@@ -56,7 +70,8 @@ def criar_preferencia_mercado_pago(pedido_id):
         raise ErroPagamento("O pedido não possui itens.")
 
     if (
-        pedido.status_pagamento in {"pending", "in_process"}
+        normalizar_status_pagamento(pedido.status_pagamento)
+        in PAGAMENTOS_PENDENTES
         and pedido.mercado_pago_preference_id
         and pedido.mercado_pago_init_point
     ):
@@ -113,14 +128,14 @@ def criar_preferencia_mercado_pago(pedido_id):
 
     pedido.mercado_pago_preference_id = preference_id
     pedido.mercado_pago_init_point = init_point
-    pedido.status = "aguardando_pagamento"
-    pedido.status_pagamento = "pending"
+    pedido.status = PEDIDO_AGUARDANDO_PAGAMENTO
+    pedido.status_pagamento = PAGAMENTO_PENDENTE
 
     if pedido.carrinho:
         pedido.carrinho.mercado_pago_preference_id = preference_id
         pedido.carrinho.mercado_pago_init_point = init_point
-        pedido.carrinho.status = "aguardando_pagamento"
-        pedido.carrinho.status_pagamento = "pending"
+        pedido.carrinho.status = CARRINHO_AGUARDANDO_PAGAMENTO
+        pedido.carrinho.status_pagamento = PAGAMENTO_PENDENTE
 
     database.session.commit()
 
@@ -137,8 +152,8 @@ def aplicar_pagamento_ao_pedido(pagamento):
     if pedido is None:
         return pagamento
 
-    status_novo = (pagamento.get("status") or "pending").lower()
-    ja_aprovado = pedido.status == "pago"
+    status_novo = normalizar_status_pagamento(pagamento.get("status"))
+    ja_aprovado = pedido.status == PEDIDO_PAGO
     payment_id = pagamento.get("id")
 
     if payment_id:
@@ -153,17 +168,17 @@ def aplicar_pagamento_ao_pedido(pagamento):
             carrinho.mercado_pago_payment_id = str(payment_id)
         carrinho.status_pagamento = status_novo
 
-    if status_novo == "approved":
+    if status_novo == PAGAMENTO_APROVADO:
         if not ja_aprovado:
             try:
                 baixar_estoque_pedido(pedido)
             except ErroCompra as erro:
                 # O pagamento foi aprovado, então não podemos tratá-lo como
                 # rejeitado. Registramos uma pendência operacional de estoque.
-                pedido.status = "pago_pendencia_estoque"
+                pedido.status = PEDIDO_PAGO_PENDENCIA_ESTOQUE
 
                 if carrinho:
-                    carrinho.status = "finalizado"
+                    carrinho.status = CARRINHO_FINALIZADO
                     carrinho.ativo = False
 
                 database.session.commit()
@@ -172,30 +187,30 @@ def aplicar_pagamento_ao_pedido(pagamento):
                     f"{erro}"
                 ) from erro
 
-        pedido.status = "pago"
+        pedido.status = PEDIDO_PAGO
 
         if carrinho:
-            carrinho.status = "finalizado"
+            carrinho.status = CARRINHO_FINALIZADO
             carrinho.ativo = False
 
-    elif status_novo in {"rejected", "cancelled", "refunded", "charged_back"}:
-        pedido.status = "falha"
+    elif status_novo in PAGAMENTOS_NAO_APROVADOS:
+        pedido.status = PEDIDO_FALHA
         pedido.mercado_pago_preference_id = None
         pedido.mercado_pago_payment_id = None
         pedido.mercado_pago_init_point = None
 
         if carrinho:
-            carrinho.status = "ativo"
+            carrinho.status = CARRINHO_ATIVO
             carrinho.ativo = True
             carrinho.mercado_pago_preference_id = None
             carrinho.mercado_pago_payment_id = None
             carrinho.mercado_pago_init_point = None
 
     else:
-        pedido.status = "aguardando_pagamento"
+        pedido.status = PEDIDO_AGUARDANDO_PAGAMENTO
 
         if carrinho:
-            carrinho.status = "aguardando_pagamento"
+            carrinho.status = CARRINHO_AGUARDANDO_PAGAMENTO
 
     database.session.commit()
     return pagamento
@@ -246,7 +261,9 @@ def sincronizar_pagamento_pedido(pedido_id):
     if not resultados:
         return {
             "id": None,
-            "status": pedido.status_pagamento or "pending",
+            "status": normalizar_status_pagamento(
+                pedido.status_pagamento or PAGAMENTO_PENDENTE
+            ),
             "external_reference": f"pedido:{pedido.id}",
         }
 

@@ -6,6 +6,7 @@ import os
 from projetoafgmed import app, database
 from projetoafgmed.models import Produto
 from projetoafgmed.forms import FormProduto
+from projetoafgmed.servicos_produtos import ErroProduto, excluir_produto
 
 
 @app.route("/produtos")
@@ -159,4 +160,29 @@ def ativar_produto(id_produto):
     database.session.commit()
 
     flash("Produto ativado.", "success")
+    return redirect(url_for("produtos"))
+
+
+@app.route("/remover-produto/<int:id_produto>", methods=["POST"])
+@login_required
+def remover_produto(id_produto):
+    if not getattr(current_user, "is_admin", False):
+        flash("Apenas administradores podem remover produtos.", "warning")
+        return redirect(url_for("produtos"))
+
+    try:
+        resultado = excluir_produto(id_produto)
+        flash(
+            f"Produto '{resultado['nome']}' removido com sucesso.",
+            "success",
+        )
+    except ErroProduto as erro:
+        flash(str(erro), "warning")
+    except Exception:
+        current_app.logger.exception("Erro ao remover produto %s", id_produto)
+        flash(
+            "Não foi possível remover o produto. Tente novamente.",
+            "danger",
+        )
+
     return redirect(url_for("produtos"))

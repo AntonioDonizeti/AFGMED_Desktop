@@ -8,6 +8,18 @@ from projetoafgmed.models import (
     PerfilUsuario,
     Produto,
 )
+from projetoafgmed.status import (
+    CARRINHO_AGUARDANDO_PAGAMENTO,
+    CARRINHO_ATIVO,
+    PAGAMENTO_APROVADO,
+    PAGAMENTO_PENDENTE,
+    PAGAMENTOS_NAO_APROVADOS,
+    PAGAMENTOS_PENDENTES,
+    PEDIDO_AGUARDANDO_PAGAMENTO,
+    PEDIDO_FALHA,
+    PEDIDO_PAGO,
+    normalizar_status_pagamento,
+)
 
 
 class ErroCompra(Exception):
@@ -68,8 +80,8 @@ def criar_ou_atualizar_pedido(carrinho, endereco, cidade, estado, cep):
         pedido = Pedido(
             id_usuario=carrinho.id_usuario,
             id_carrinho=carrinho.id,
-            status="aguardando_pagamento",
-            status_pagamento="pending",
+            status=PEDIDO_AGUARDANDO_PAGAMENTO,
+            status_pagamento=PAGAMENTO_PENDENTE,
             endereco=endereco,
             cidade=cidade,
             estado=estado,
@@ -88,8 +100,8 @@ def criar_ou_atualizar_pedido(carrinho, endereco, cidade, estado, cep):
         pedido.total_produtos = total_produtos
         pedido.total_entrega = total_entrega
         pedido.total = total
-        pedido.status = "aguardando_pagamento"
-        pedido.status_pagamento = "pending"
+        pedido.status = PEDIDO_AGUARDANDO_PAGAMENTO
+        pedido.status_pagamento = PAGAMENTO_PENDENTE
 
     ItemPedido.query.filter_by(id_pedido=pedido.id).delete(
         synchronize_session=False
@@ -119,9 +131,11 @@ def criar_ou_atualizar_pedido(carrinho, endereco, cidade, estado, cep):
 
 
 def status_visual_pedido(pedido):
-    status_pagamento = (pedido.status_pagamento or "").lower()
+    status_pagamento = normalizar_status_pagamento(
+        pedido.status_pagamento
+    )
 
-    if pedido.status == "pago" or status_pagamento == "approved":
+    if pedido.status == PEDIDO_PAGO or status_pagamento == PAGAMENTO_APROVADO:
         return {
             "classe": "bg-success",
             "icone": "bi-check-circle",
@@ -129,11 +143,10 @@ def status_visual_pedido(pedido):
             "descricao": "Pedido confirmado e em preparação.",
         }
 
-    if pedido.status == "aguardando_pagamento" or status_pagamento in {
-        "pending",
-        "pendente",
-        "in_process",
-    }:
+    if (
+        pedido.status == PEDIDO_AGUARDANDO_PAGAMENTO
+        or status_pagamento in PAGAMENTOS_PENDENTES
+    ):
         return {
             "classe": "bg-warning text-dark",
             "icone": "bi-clock-history",
@@ -141,10 +154,10 @@ def status_visual_pedido(pedido):
             "descricao": "O pagamento ainda está pendente de confirmação.",
         }
 
-    if pedido.status in {"falha", "cancelado"} or status_pagamento in {
-        "rejected",
-        "cancelled",
-    }:
+    if (
+        pedido.status in {PEDIDO_FALHA, "cancelado"}
+        or status_pagamento in PAGAMENTOS_NAO_APROVADOS
+    ):
         return {
             "classe": "bg-danger",
             "icone": "bi-x-circle",
@@ -164,7 +177,7 @@ def obter_carrinho_ativo(usuario_id):
     return (
         Carrinho.query.filter_by(
             id_usuario=usuario_id,
-            status="ativo",
+            status=CARRINHO_ATIVO,
         )
         .order_by(Carrinho.id.desc())
         .first()
@@ -175,18 +188,42 @@ def validar_estoque_carrinho(carrinho):
     if carrinho is None or not carrinho.itens:
         raise ErroCompra("Seu carrinho está vazio.")
 
+    if carrinho.status != CARRINHO_ATIVO or not carrinho.ativo:
+        raise ErroCompra(
+            "Este carrinho não está disponível para alterações ou finalização."
+        )
+
+    quantidades_por_produto = {}
+
     for item in carrinho.itens:
         produto = database.session.get(Produto, item.id_produto)
+        quantidade = int(item.quantidade or 0)
 
         if produto is None or not produto.ativo:
             raise ErroCompra(
                 f"O produto do item nº {item.id} não está mais disponível."
             )
 
-        if int(item.quantidade or 0) > int(produto.estoque or 0):
+        if quantidade <= 0:
+            raise ErroCompra(
+                f"A quantidade de {produto.nome} deve ser maior que zero."
+            )
+
+        dados_produto = quantidades_por_produto.setdefault(
+            produto.id,
+            {"produto": produto, "quantidade": 0},
+        )
+        dados_produto["quantidade"] += quantidade
+
+    for dados in quantidades_por_produto.values():
+        produto = dados["produto"]
+        quantidade_total = dados["quantidade"]
+        estoque_atual = int(produto.estoque or 0)
+
+        if quantidade_total > estoque_atual:
             raise ErroCompra(
                 f"Estoque insuficiente para {produto.nome}. "
-                f"Disponível: {produto.estoque}."
+                f"Solicitado: {quantidade_total}; disponível: {estoque_atual}."
             )
 
     return True
@@ -210,9 +247,9 @@ def adicionar_produto(usuario_id, produto_id):
         if carrinho is None:
             carrinho = Carrinho(
                 id_usuario=usuario_id,
-                status="ativo",
+                status=CARRINHO_ATIVO,
                 ativo=True,
-                status_pagamento="pendente",
+                status_pagamento=PAGAMENTO_PENDENTE,
             )
             database.session.add(carrinho)
             database.session.flush()
@@ -242,6 +279,8 @@ def adicionar_produto(usuario_id, produto_id):
 
         # O estoque NÃO é reduzido no carrinho.
         # A baixa ocorre apenas quando o pagamento for aprovado.
+        database.session.flush()
+        validar_estoque_carrinho(carrinho)
         database.session.commit()
 
         return f"{produto.nome} adicionado ao carrinho."
@@ -263,7 +302,7 @@ def alterar_quantidade(usuario_id, item_id, acao):
         if carrinho is None or carrinho.id_usuario != usuario_id:
             raise ErroCompra("Você não pode alterar este item.")
 
-        if carrinho.status != "ativo":
+        if carrinho.status != CARRINHO_ATIVO:
             raise ErroCompra("Este carrinho já foi enviado para pagamento.")
 
         produto = database.session.get(Produto, item.id_produto)
@@ -290,6 +329,11 @@ def alterar_quantidade(usuario_id, item_id, acao):
         else:
             raise ErroCompra("Ação inválida.")
 
+        database.session.flush()
+
+        if carrinho.itens:
+            validar_estoque_carrinho(carrinho)
+
         database.session.commit()
 
     except Exception:
@@ -309,7 +353,7 @@ def remover_item(usuario_id, item_id):
         if carrinho is None or carrinho.id_usuario != usuario_id:
             raise ErroCompra("Você não pode remover este item.")
 
-        if carrinho.status != "ativo":
+        if carrinho.status != CARRINHO_ATIVO:
             raise ErroCompra("Este carrinho já foi enviado para pagamento.")
 
         # Não existe devolução de estoque porque o carrinho não reserva estoque.
@@ -329,7 +373,10 @@ def baixar_estoque_pedido(pedido):
     Ela primeiro valida todos os itens e só depois altera as quantidades, evitando
     uma baixa parcial em caso de falta de estoque.
     """
-    itens_para_baixa = []
+    if pedido is None or not pedido.itens:
+        raise ErroCompra("O pedido não possui itens para atualizar o estoque.")
+
+    itens_por_produto = {}
 
     for item in pedido.itens:
         produto = database.session.get(Produto, item.id_produto)
@@ -340,12 +387,23 @@ def baixar_estoque_pedido(pedido):
             )
 
         quantidade = int(item.quantidade or 0)
-        estoque_atual = int(produto.estoque or 0)
-
         if quantidade <= 0:
             raise ErroCompra(
                 f"Quantidade inválida no produto '{item.nome_produto}'."
             )
+
+        dados_produto = itens_por_produto.setdefault(
+            produto.id,
+            {"produto": produto, "quantidade": 0},
+        )
+        dados_produto["quantidade"] += quantidade
+
+    itens_para_baixa = []
+
+    for dados in itens_por_produto.values():
+        produto = dados["produto"]
+        quantidade = dados["quantidade"]
+        estoque_atual = int(produto.estoque or 0)
 
         if estoque_atual < quantidade:
             raise ErroCompra(
@@ -412,8 +470,8 @@ def finalizar_pedido_local(usuario_id, endereco, cidade, estado, cep):
             cep=cep,
         )
 
-        carrinho.status = "aguardando_pagamento"
-        carrinho.status_pagamento = "pending"
+        carrinho.status = CARRINHO_AGUARDANDO_PAGAMENTO
+        carrinho.status_pagamento = PAGAMENTO_PENDENTE
 
         # O estoque continua intacto até o pagamento ser aprovado.
         database.session.commit()
@@ -422,4 +480,3 @@ def finalizar_pedido_local(usuario_id, endereco, cidade, estado, cep):
     except Exception:
         database.session.rollback()
         raise
-

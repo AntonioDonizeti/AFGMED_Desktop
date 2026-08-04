@@ -23,10 +23,13 @@ from desktop.estilos import aplicar_estilo
 from projetoafgmed import app, database
 from projetoafgmed.models import Consulta, Medico, Usuario
 from projetoafgmed.servicos_consultas import (
+    ErroConsulta,
     HORARIOS_CONSULTA,
     horarios_indisponiveis_por_tempo,
-    validar_data_horario_futuro,
+    horarios_ocupados_medico,
+    salvar_consulta,
 )
+from projetoafgmed.status import CONSULTA_AGENDADA
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -389,7 +392,7 @@ def abrir_agendamento(
                 if consulta.usuario_id != usuario_id:
                     raise ValueError("Você não pode reagendar esta consulta.")
 
-                if consulta.status != "agendada":
+                if consulta.status != CONSULTA_AGENDADA:
                     raise ValueError(
                         "Apenas consultas agendadas podem ser reagendadas."
                     )
@@ -488,16 +491,11 @@ def abrir_agendamento(
         data_escolhida = data.date().toPython()
 
         with app.app_context():
-            consulta_query = Consulta.query.filter(
-                Consulta.medico_id == medico["id"],
-                Consulta.data == data_escolhida,
-                Consulta.status.in_(["agendada", "concluida"]),
+            ocupados = horarios_ocupados_medico(
+                medico_id=medico["id"],
+                data_consulta=data_escolhida,
+                consulta_id=consulta_id,
             )
-
-            if consulta_id is not None:
-                consulta_query = consulta_query.filter(Consulta.id != consulta_id)
-
-            ocupados = {consulta.horario for consulta in consulta_query.all()}
 
         horarios_passados = horarios_indisponiveis_por_tempo(
             data_escolhida,
@@ -554,74 +552,17 @@ def abrir_agendamento(
                 usuario_existe = database.session.get(Usuario, usuario_id)
 
                 if usuario_existe is None:
-                    raise ValueError("O usuário conectado não existe no banco.")
+                    raise ErroConsulta("O usuário conectado não existe no banco.")
 
                 data_python = data.date().toPython()
 
-                validar_data_horario_futuro(
-                    data_python,
-                    horario,
+                salvar_consulta(
+                    medico_id=medico["id"],
+                    usuario_id=usuario_id,
+                    data_consulta=data_python,
+                    horario=horario,
+                    consulta_id=consulta_id,
                 )
-
-                consulta_ocupada = Consulta.query.filter(
-                    Consulta.medico_id == medico["id"],
-                    Consulta.data == data_python,
-                    Consulta.horario == horario,
-                    Consulta.status.in_(["agendada", "concluida"]),
-                )
-
-                if consulta_id is not None:
-                    consulta_ocupada = consulta_ocupada.filter(
-                        Consulta.id != consulta_id
-                    )
-
-                if consulta_ocupada.first():
-                    raise ValueError("Este horário já foi reservado.")
-
-                conflito_usuario = Consulta.query.filter(
-                    Consulta.usuario_id == usuario_id,
-                    Consulta.data == data_python,
-                    Consulta.horario == horario,
-                    Consulta.status == "agendada",
-                )
-
-                if consulta_id is not None:
-                    conflito_usuario = conflito_usuario.filter(
-                        Consulta.id != consulta_id
-                    )
-
-                if conflito_usuario.first():
-                    raise ValueError(
-                        "Você já possui outra consulta nesse mesmo horário."
-                    )
-
-                if reagendando:
-                    consulta = database.session.get(Consulta, consulta_id)
-
-                    if consulta is None:
-                        raise ValueError("Consulta não encontrada.")
-
-                    if consulta.usuario_id != usuario_id:
-                        raise ValueError("Você não pode reagendar esta consulta.")
-
-                    if consulta.status != "agendada":
-                        raise ValueError(
-                            "Apenas consultas agendadas podem ser reagendadas."
-                        )
-
-                    consulta.data = data_python
-                    consulta.horario = horario
-                else:
-                    consulta = Consulta(
-                        medico_id=medico["id"],
-                        usuario_id=usuario_id,
-                        data=data_python,
-                        horario=horario,
-                        status="agendada",
-                    )
-                    database.session.add(consulta)
-
-                database.session.commit()
 
             QMessageBox.information(
                 janela,
@@ -634,7 +575,7 @@ def abrir_agendamento(
             )
             janela.accept()
 
-        except ValueError as erro:
+        except ErroConsulta as erro:
             QMessageBox.warning(
                 janela,
                 "Não foi possível reagendar" if reagendando else "Não foi possível agendar",
@@ -643,13 +584,11 @@ def abrir_agendamento(
             atualizar_horarios()
 
         except Exception as erro:
+            print("ERRO AO SALVAR CONSULTA:", erro)
             QMessageBox.critical(
                 janela,
                 "Erro",
-                (
-                    "Não foi possível salvar a consulta."
-                    f"\n\n{erro}"
-                ),
+                "Não foi possível salvar a consulta. Tente novamente.",
             )
 
         finally:

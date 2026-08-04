@@ -1,6 +1,12 @@
 from flask_login import UserMixin
 from datetime import datetime
 from projetoafgmed import database, login_manager
+from projetoafgmed.status import (
+    CARRINHO_ATIVO,
+    CONSULTA_AGENDADA,
+    PAGAMENTO_PENDENTE,
+    PEDIDO_AGUARDANDO_PAGAMENTO,
+)
 
 
 @login_manager.user_loader
@@ -65,15 +71,16 @@ class Consulta(database.Model):
     data = database.Column(database.Date, default=datetime.today)
 
     # Status possíveis: agendada, cancelada, concluida
-    status = database.Column(database.String(20), nullable=False, default="agendada")
+    status = database.Column(
+        database.String(20),
+        nullable=False,
+        default=CONSULTA_AGENDADA,
+    )
 
     medico = database.relationship("Medico", backref=database.backref("consultas", lazy=True))
 
     def __repr__(self):
         return f"<Consulta {self.usuario.nome} - {self.horario} - {self.status}>"
-
-    def __repr__(self):
-        return f"<Consulta {self.usuario.nome} - {self.horario}>"
 
 
 class Produto(database.Model):
@@ -93,10 +100,13 @@ class Carrinho(database.Model):
     id_usuario = database.Column(database.Integer, database.ForeignKey("usuario.id"), nullable=False)
     data_criacao = database.Column(database.DateTime, default=datetime.utcnow)
 
-    status = database.Column(database.String, default="ativo")
+    status = database.Column(database.String, default=CARRINHO_ATIVO)
     ativo = database.Column(database.Boolean, default=True, nullable=False)
 
-    status_pagamento = database.Column(database.String(30), default="pendente")
+    status_pagamento = database.Column(
+        database.String(30),
+        default=PAGAMENTO_PENDENTE,
+    )
     mercado_pago_preference_id = database.Column(database.String(120), nullable=True)
     mercado_pago_payment_id = database.Column(database.String(120), nullable=True)
     mercado_pago_init_point = database.Column(database.String(500), nullable=True)
@@ -135,8 +145,16 @@ class Pedido(database.Model):
     id_usuario = database.Column(database.Integer, database.ForeignKey("usuario.id"), nullable=False)
     id_carrinho = database.Column(database.Integer, database.ForeignKey("carrinho.id"), nullable=False, unique=True)
 
-    status = database.Column(database.String(30), default="aguardando_pagamento", nullable=False)
-    status_pagamento = database.Column(database.String(30), default="pending", nullable=False)
+    status = database.Column(
+        database.String(30),
+        default=PEDIDO_AGUARDANDO_PAGAMENTO,
+        nullable=False,
+    )
+    status_pagamento = database.Column(
+        database.String(30),
+        default=PAGAMENTO_PENDENTE,
+        nullable=False,
+    )
 
     total_produtos = database.Column(database.Float, default=0, nullable=False)
     total_entrega = database.Column(database.Float, default=0, nullable=False)

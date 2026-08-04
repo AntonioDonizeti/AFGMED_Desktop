@@ -27,6 +27,17 @@ from projetoafgmed.servicos_pagamento import (
     obter_pedido_por_referencia,
     sincronizar_pagamento_por_id,
 )
+from projetoafgmed.status import (
+    CARRINHO_AGUARDANDO_PAGAMENTO,
+    CARRINHO_ATIVO,
+    PAGAMENTO_PENDENTE,
+    PAGAMENTO_REJEITADO,
+    PAGAMENTOS_PENDENTES,
+    PEDIDO_AGUARDANDO_PAGAMENTO,
+    PEDIDO_FALHA,
+    PEDIDO_PAGO,
+    normalizar_status_pagamento,
+)
 
 
 @app.route(
@@ -52,8 +63,8 @@ def entrega(id_carrinho):
         return redirect(url_for("homepage"))
 
     if carrinho.status not in [
-        "ativo",
-        "aguardando_pagamento"
+        CARRINHO_ATIVO,
+        CARRINHO_AGUARDANDO_PAGAMENTO,
     ]:
         flash(
             "Este carrinho não está mais disponível.",
@@ -148,23 +159,46 @@ def entrega(id_carrinho):
 
         database.session.add(perfil_usuario)
 
-        pedido = criar_ou_atualizar_pedido(
-            carrinho=carrinho,
-            endereco=endereco,
-            cidade=cidade,
-            estado=estado,
-            cep=cep
-        )
+        try:
+            pedido = criar_ou_atualizar_pedido(
+                carrinho=carrinho,
+                endereco=endereco,
+                cidade=cidade,
+                estado=estado,
+                cep=cep,
+            )
+            database.session.commit()
+        except ErroCompra as erro:
+            database.session.rollback()
 
-        database.session.commit()
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({
+                    "sucesso": False,
+                    "mensagem": str(erro),
+                }), 400
+
+            flash(str(erro), "warning")
+            return redirect(url_for("ver_carrinho"))
+        except Exception:
+            database.session.rollback()
+            current_app.logger.exception("Erro ao criar pedido")
+            mensagem_erro = (
+                "Não foi possível criar o pedido. Tente novamente."
+            )
+
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({
+                    "sucesso": False,
+                    "mensagem": mensagem_erro,
+                }), 500
+
+            flash(mensagem_erro, "danger")
+            return redirect(url_for("ver_carrinho"))
 
         preference_existente = (
-            pedido.status == "aguardando_pagamento"
-            and pedido.status_pagamento in [
-                "pending",
-                "pendente",
-                "in_process"
-            ]
+            pedido.status == PEDIDO_AGUARDANDO_PAGAMENTO
+            and normalizar_status_pagamento(pedido.status_pagamento)
+            in PAGAMENTOS_PENDENTES
             and pedido.mercado_pago_preference_id
             and pedido.mercado_pago_init_point
         )
@@ -185,11 +219,11 @@ def entrega(id_carrinho):
                 pedido.mercado_pago_init_point
             )
 
-        carrinho.status = "aguardando_pagamento"
-        carrinho.status_pagamento = "pending"
+        carrinho.status = CARRINHO_AGUARDANDO_PAGAMENTO
+        carrinho.status_pagamento = PAGAMENTO_PENDENTE
 
-        pedido.status = "aguardando_pagamento"
-        pedido.status_pagamento = "pending"
+        pedido.status = PEDIDO_AGUARDANDO_PAGAMENTO
+        pedido.status_pagamento = PAGAMENTO_PENDENTE
 
         database.session.commit()
 
@@ -198,10 +232,10 @@ def entrega(id_carrinho):
         except ErroPagamento as erro_mp:
             database.session.rollback()
 
-            carrinho.status = "ativo"
-            carrinho.status_pagamento = "pendente"
-            pedido.status = "falha"
-            pedido.status_pagamento = "rejected"
+            carrinho.status = CARRINHO_ATIVO
+            carrinho.status_pagamento = PAGAMENTO_PENDENTE
+            pedido.status = PEDIDO_FALHA
+            pedido.status_pagamento = PAGAMENTO_REJEITADO
             database.session.commit()
 
             mensagem_erro = f"Erro Mercado Pago: {erro_mp}"
@@ -223,11 +257,11 @@ def entrega(id_carrinho):
         link_pagamento = preference.get("init_point")
 
         if not link_pagamento:
-            carrinho.status = "ativo"
-            carrinho.status_pagamento = "pendente"
+            carrinho.status = CARRINHO_ATIVO
+            carrinho.status_pagamento = PAGAMENTO_PENDENTE
 
-            pedido.status = "falha"
-            pedido.status_pagamento = "rejected"
+            pedido.status = PEDIDO_FALHA
+            pedido.status_pagamento = PAGAMENTO_REJEITADO
 
             database.session.commit()
 
@@ -315,7 +349,7 @@ def pagamento_sucesso():
             external_reference
         )
 
-    if pedido and pedido.status == "pago":
+    if pedido and pedido.status == PEDIDO_PAGO:
         return render_template(
             "pagamento_sucesso.html",
             pedido=pedido,
@@ -350,12 +384,12 @@ def pagamento_falha():
     )
 
     if pedido:
-        pedido.status_pagamento = "rejected"
-        pedido.status = "falha"
+        pedido.status_pagamento = PAGAMENTO_REJEITADO
+        pedido.status = PEDIDO_FALHA
 
     if carrinho:
-        carrinho.status_pagamento = "falha"
-        carrinho.status = "ativo"
+        carrinho.status_pagamento = PAGAMENTO_REJEITADO
+        carrinho.status = CARRINHO_ATIVO
 
         carrinho.mercado_pago_preference_id = None
         carrinho.mercado_pago_payment_id = None
@@ -407,7 +441,7 @@ def pagamento_pendente():
             external_reference
         )
 
-    if pedido and pedido.status == "pago":
+    if pedido and pedido.status == PEDIDO_PAGO:
         return render_template(
             "pagamento_sucesso.html",
             pedido=pedido,

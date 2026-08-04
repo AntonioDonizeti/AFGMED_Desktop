@@ -1,4 +1,12 @@
-from flask import flash, jsonify, redirect, render_template, request, url_for
+from flask import (
+    current_app,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask_login import current_user, login_required
 
 from projetoafgmed import app
@@ -10,6 +18,7 @@ from projetoafgmed.servicos_compras import (
     montar_resposta_carrinho,
     obter_carrinho_ativo,
     remover_item as remover_item_carrinho,
+    validar_estoque_carrinho,
 )
 
 
@@ -35,6 +44,13 @@ def adicionar_carrinho(id_produto):
     except ErroCompra as erro:
         flash(str(erro), "warning")
 
+    except Exception:
+        current_app.logger.exception("Erro ao adicionar produto ao carrinho")
+        flash(
+            "Não foi possível adicionar o produto. Tente novamente.",
+            "danger",
+        )
+
     return redirect(request.referrer or url_for("produtos"))
 
 
@@ -58,6 +74,13 @@ def atualizar_item(id_item):
             "mensagem": str(erro),
         }), 400
 
+    except Exception:
+        current_app.logger.exception("Erro ao atualizar item do carrinho")
+        return jsonify({
+            "sucesso": False,
+            "mensagem": "Não foi possível atualizar o item. Tente novamente.",
+        }), 500
+
 
 @app.route("/remover-item/<int:id_item>", methods=["POST"])
 @login_required
@@ -75,6 +98,13 @@ def remover_item(id_item):
             "sucesso": False,
             "mensagem": str(erro),
         }), 400
+
+    except Exception:
+        current_app.logger.exception("Erro ao remover item do carrinho")
+        return jsonify({
+            "sucesso": False,
+            "mensagem": "Não foi possível remover o item. Tente novamente.",
+        }), 500
 
 
 @app.route("/ver-carrinho")
@@ -96,8 +126,18 @@ def ver_carrinho():
 def finalizar_carrinho():
     carrinho = obter_carrinho_ativo(current_user.id)
 
-    if not carrinho or not carrinho.itens:
-        flash("Carrinho vazio!", "warning")
+    try:
+        validar_estoque_carrinho(carrinho)
+    except ErroCompra as erro:
+        flash(str(erro), "warning")
+        return redirect(url_for("ver_carrinho"))
+
+    except Exception:
+        current_app.logger.exception("Erro ao validar carrinho")
+        flash(
+            "Não foi possível validar o carrinho. Tente novamente.",
+            "danger",
+        )
         return redirect(url_for("ver_carrinho"))
 
     return redirect(url_for("entrega", id_carrinho=carrinho.id))

@@ -214,6 +214,16 @@
                                                 </form>
                                             {% endif %}
 
+                                            <form action="{{ url_for('remover_produto', id_produto=produto.id) }}"
+                                                  method="post"
+                                                  class="w-100"
+                                                  onsubmit="return confirm('Deseja excluir definitivamente este produto? Ele também será removido dos carrinhos.');">
+                                                <button type="submit" class="btn btn-admin-remover w-100">
+                                                    <i class="bi bi-trash3"></i>
+                                                    Excluir produto
+                                                </button>
+                                            </form>
+
                                         </div>
                                     </div>
                                 </div>
@@ -550,7 +560,8 @@
 .btn-admin-editar,
 .btn-admin-destaque,
 .btn-admin-desativar,
-.btn-admin-ativar {
+.btn-admin-ativar,
+.btn-admin-remover {
     border: none;
     border-radius: 14px;
     min-height: 42px;
@@ -578,6 +589,16 @@
 
 .btn-admin-ativar {
     background: #198754;
+    color: #ffffff;
+}
+
+.btn-admin-remover {
+    background: #7f1d1d;
+    color: #ffffff;
+}
+
+.btn-admin-remover:hover {
+    background: #651515;
     color: #ffffff;
 }
 

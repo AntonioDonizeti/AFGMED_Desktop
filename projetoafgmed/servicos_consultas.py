@@ -1,5 +1,14 @@
 from datetime import date, datetime
 
+from projetoafgmed import database
+from projetoafgmed.models import Consulta
+from projetoafgmed.status import (
+    CONSULTA_AGENDADA,
+    CONSULTA_CANCELADA,
+    CONSULTA_CONCLUIDA,
+    CONSULTAS_QUE_OCUPAM_HORARIO,
+)
+
 
 HORARIOS_CONSULTA = (
     "09:00",
@@ -97,24 +106,146 @@ def horarios_indisponiveis_por_tempo(
     return indisponiveis
 
 
-def status_visual_consulta(consulta):
-    status = (consulta.status or "agendada").lower()
+def validar_disponibilidade_consulta(
+    medico_id,
+    usuario_id,
+    data_consulta,
+    horario,
+    consulta_id=None,
+    agora=None,
+):
+    """Valida conflitos do médico e do paciente no mesmo dia e horário."""
+    momento_consulta = validar_data_horario_futuro(
+        data_consulta,
+        horario,
+        agora=agora,
+    )
+    data_obj = momento_consulta.date()
+    horario_texto = str(horario).strip()
 
-    if status == "agendada":
+    horario_medico = Consulta.query.filter(
+        Consulta.medico_id == medico_id,
+        Consulta.data == data_obj,
+        Consulta.horario == horario_texto,
+        Consulta.status.in_(CONSULTAS_QUE_OCUPAM_HORARIO),
+    )
+
+    conflito_usuario = Consulta.query.filter(
+        Consulta.usuario_id == usuario_id,
+        Consulta.data == data_obj,
+        Consulta.horario == horario_texto,
+        Consulta.status.in_(CONSULTAS_QUE_OCUPAM_HORARIO),
+    )
+
+    if consulta_id is not None:
+        horario_medico = horario_medico.filter(Consulta.id != consulta_id)
+        conflito_usuario = conflito_usuario.filter(Consulta.id != consulta_id)
+
+    if horario_medico.first():
+        raise ErroConsulta(
+            "Esse horário já está reservado para o médico selecionado."
+        )
+
+    if conflito_usuario.first():
+        raise ErroConsulta(
+            "Você já possui outra consulta nesse mesmo dia e horário."
+        )
+
+    return data_obj, horario_texto
+
+
+def salvar_consulta(
+    medico_id,
+    usuario_id,
+    data_consulta,
+    horario,
+    consulta_id=None,
+):
+    """Cria ou reagenda uma consulta aplicando as mesmas regras em web e desktop."""
+    try:
+        consulta = None
+
+        if consulta_id is not None:
+            consulta = database.session.get(Consulta, consulta_id)
+
+            if consulta is None:
+                raise ErroConsulta("Consulta não encontrada.")
+
+            if consulta.usuario_id != usuario_id:
+                raise ErroConsulta("Você não pode reagendar esta consulta.")
+
+            if consulta.medico_id != medico_id:
+                raise ErroConsulta(
+                    "O médico informado não corresponde ao agendamento."
+                )
+
+            if consulta.status != CONSULTA_AGENDADA:
+                raise ErroConsulta(
+                    "Apenas consultas agendadas podem ser reagendadas."
+                )
+
+        data_obj, horario_texto = validar_disponibilidade_consulta(
+            medico_id=medico_id,
+            usuario_id=usuario_id,
+            data_consulta=data_consulta,
+            horario=horario,
+            consulta_id=consulta_id,
+        )
+
+        if consulta is None:
+            consulta = Consulta(
+                medico_id=medico_id,
+                usuario_id=usuario_id,
+                data=data_obj,
+                horario=horario_texto,
+                status=CONSULTA_AGENDADA,
+            )
+            database.session.add(consulta)
+        else:
+            consulta.data = data_obj
+            consulta.horario = horario_texto
+
+        database.session.commit()
+        return consulta
+
+    except Exception:
+        database.session.rollback()
+        raise
+
+
+def horarios_ocupados_medico(medico_id, data_consulta, consulta_id=None):
+    """Retorna os horários já reservados para um médico em determinada data."""
+    data_obj = normalizar_data_consulta(data_consulta)
+    consulta_query = Consulta.query.filter(
+        Consulta.medico_id == medico_id,
+        Consulta.data == data_obj,
+        Consulta.status.in_(CONSULTAS_QUE_OCUPAM_HORARIO),
+    )
+
+    if consulta_id is not None:
+        consulta_query = consulta_query.filter(Consulta.id != consulta_id)
+
+    return {consulta.horario for consulta in consulta_query.all()}
+
+
+def status_visual_consulta(consulta):
+    status = (consulta.status or CONSULTA_AGENDADA).lower()
+
+    if status == CONSULTA_AGENDADA:
         return {
             "classe": "bg-primary",
             "icone": "bi-calendar-check",
             "texto": "Agendada",
         }
 
-    if status == "cancelada":
+    if status == CONSULTA_CANCELADA:
         return {
             "classe": "bg-danger",
             "icone": "bi-x-circle",
             "texto": "Cancelada",
         }
 
-    if status == "concluida":
+    if status == CONSULTA_CONCLUIDA:
         return {
             "classe": "bg-success",
             "icone": "bi-check-circle",

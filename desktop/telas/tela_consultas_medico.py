@@ -19,6 +19,11 @@ from PySide6.QtWidgets import (
 from desktop.estilos import aplicar_estilo
 from projetoafgmed import app, database
 from projetoafgmed.models import Consulta, Medico
+from projetoafgmed.status import (
+    CONSULTA_AGENDADA,
+    CONSULTA_CANCELADA,
+    CONSULTA_CONCLUIDA,
+)
 
 
 class TelaConsultasMedico(QWidget):
@@ -161,7 +166,7 @@ class TelaConsultasMedico(QWidget):
                             ).strip(),
                             "data": consulta.data,
                             "horario": consulta.horario,
-                            "status": consulta.status or "agendada",
+                            "status": consulta.status or CONSULTA_AGENDADA,
                             "email": consulta.usuario.email or "",
                             "telefone": getattr(perfil, "telefone", "") or "—",
                         }
@@ -170,11 +175,19 @@ class TelaConsultasMedico(QWidget):
                 hoje = date.today()
                 metricas = {
                     "Hoje": sum(
-                        1 for c in todas if c.data == hoje and c.status == "agendada"
+                        1
+                        for c in todas
+                        if c.data == hoje and c.status == CONSULTA_AGENDADA
                     ),
-                    "Agendadas": sum(1 for c in todas if c.status == "agendada"),
-                    "Concluídas": sum(1 for c in todas if c.status == "concluida"),
-                    "Canceladas": sum(1 for c in todas if c.status == "cancelada"),
+                    "Agendadas": sum(
+                        1 for c in todas if c.status == CONSULTA_AGENDADA
+                    ),
+                    "Concluídas": sum(
+                        1 for c in todas if c.status == CONSULTA_CONCLUIDA
+                    ),
+                    "Canceladas": sum(
+                        1 for c in todas if c.status == CONSULTA_CANCELADA
+                    ),
                 }
 
                 nome_medico = (
@@ -249,17 +262,25 @@ class TelaConsultasMedico(QWidget):
 
         try:
             with app.app_context():
-                consulta = database.session.get(Consulta, consulta_id)
+                try:
+                    consulta = database.session.get(Consulta, consulta_id)
 
-                if consulta is None:
-                    raise ValueError("Consulta não encontrada.")
-                if consulta.medico_id != self.medico_id:
-                    raise PermissionError("Esta consulta pertence a outro médico.")
-                if consulta.status != "agendada":
-                    raise ValueError("Apenas consultas agendadas podem ser concluídas.")
+                    if consulta is None:
+                        raise ValueError("Consulta não encontrada.")
+                    if consulta.medico_id != self.medico_id:
+                        raise PermissionError(
+                            "Esta consulta pertence a outro médico."
+                        )
+                    if consulta.status != CONSULTA_AGENDADA:
+                        raise ValueError(
+                            "Apenas consultas agendadas podem ser concluídas."
+                        )
 
-                consulta.status = "concluida"
-                database.session.commit()
+                    consulta.status = CONSULTA_CONCLUIDA
+                    database.session.commit()
+                except Exception:
+                    database.session.rollback()
+                    raise
 
             QMessageBox.information(
                 self,
@@ -268,6 +289,12 @@ class TelaConsultasMedico(QWidget):
             )
             self.recarregar()
 
+        except (ValueError, PermissionError) as erro:
+            QMessageBox.warning(self, "Não foi possível concluir", str(erro))
         except Exception as erro:
-            database.session.rollback()
-            QMessageBox.critical(self, "Erro", str(erro))
+            print("ERRO AO CONCLUIR CONSULTA:", erro)
+            QMessageBox.critical(
+                self,
+                "Erro",
+                "Não foi possível concluir a consulta. Tente novamente.",
+            )

@@ -1,10 +1,29 @@
-from flask import render_template, redirect, url_for, flash, request, jsonify
+from flask import (
+    current_app,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask_login import login_required, current_user
-from datetime import datetime
 
 from projetoafgmed import app, database
 from projetoafgmed.models import Medico, Consulta
-from projetoafgmed.servicos_consultas import status_visual_consulta
+from projetoafgmed.servicos_consultas import (
+    ErroConsulta,
+    HORARIOS_CONSULTA,
+    horarios_indisponiveis_por_tempo,
+    horarios_ocupados_medico,
+    salvar_consulta,
+    status_visual_consulta,
+)
+from projetoafgmed.status import (
+    CONSULTA_AGENDADA,
+    CONSULTA_CANCELADA,
+    CONSULTA_CONCLUIDA,
+)
 
 
 @app.route("/consultas/<int:medico_id>", methods=["GET", "POST"])
@@ -15,51 +34,34 @@ def consultas(medico_id):
         return redirect(url_for("medicos"))
 
     medico = Medico.query.get_or_404(medico_id)
-    horarios = ["09:00", "10:00", "11:00", "14:00", "15:00", "16:00"]
+    horarios = list(HORARIOS_CONSULTA)
 
     if request.method == "POST":
         horario = request.form.get("horario")
         data_consulta = request.form.get("data_consulta")
 
-        if not horario or not data_consulta:
-            flash("Escolha data e horário para continuar.", "warning")
-            return redirect(url_for("consultas", medico_id=medico.id))
-
-        if horario not in horarios:
-            flash("Horário inválido.", "danger")
-            return redirect(url_for("consultas", medico_id=medico.id))
-
         try:
-            data_obj = datetime.strptime(data_consulta, "%Y-%m-%d").date()
-        except ValueError:
-            flash("Data inválida.", "danger")
+            if not horario or not data_consulta:
+                raise ErroConsulta("Escolha data e horário para continuar.")
+
+            salvar_consulta(
+                medico_id=medico.id,
+                usuario_id=current_user.id,
+                data_consulta=data_consulta,
+                horario=horario,
+            )
+
+        except ErroConsulta as erro:
+            flash(str(erro), "warning")
             return redirect(url_for("consultas", medico_id=medico.id))
 
-        if data_obj < datetime.today().date():
-            flash("Não é possível marcar consulta em data passada.", "warning")
+        except Exception:
+            current_app.logger.exception("Erro ao salvar consulta")
+            flash(
+                "Não foi possível salvar a consulta. Tente novamente.",
+                "danger",
+            )
             return redirect(url_for("consultas", medico_id=medico.id))
-
-        existente = Consulta.query.filter(
-            Consulta.medico_id == medico.id,
-            Consulta.horario == horario,
-            Consulta.data == data_obj,
-            Consulta.status.in_(["agendada", "concluida"])
-        ).first()
-
-        if existente:
-            flash("Horário já reservado para essa data!", "danger")
-            return redirect(url_for("consultas", medico_id=medico.id))
-
-        nova_consulta = Consulta(
-            medico_id=medico.id,
-            usuario_id=current_user.id,
-            horario=horario,
-            data=data_obj,
-            status="agendada"
-        )
-
-        database.session.add(nova_consulta)
-        database.session.commit()
 
         flash("Consulta agendada com sucesso!", "success")
         return redirect(url_for("meus_agendamentos"))
@@ -78,22 +80,12 @@ def consultas(medico_id):
 @login_required
 def horarios_disponiveis(medico_id, data):
     try:
-        data_obj = datetime.strptime(data, "%Y-%m-%d").date()
-    except ValueError:
+        ocupados = horarios_ocupados_medico(medico_id, data)
+        indisponiveis_tempo = horarios_indisponiveis_por_tempo(data)
+    except ErroConsulta:
         return jsonify([])
 
-    if data_obj < datetime.today().date():
-        return jsonify([])
-
-    consultas = Consulta.query.filter(
-        Consulta.medico_id == medico_id,
-        Consulta.data == data_obj,
-        Consulta.status.in_(["agendada", "concluida"])
-    ).all()
-
-    horarios_ocupados = [c.horario for c in consultas]
-
-    return jsonify(horarios_ocupados)
+    return jsonify(sorted(ocupados | indisponiveis_tempo))
 
 
 @app.route("/meus_agendamentos")
@@ -101,7 +93,7 @@ def horarios_disponiveis(medico_id, data):
 def meus_agendamentos():
     consultas_usuario = Consulta.query.filter(
         Consulta.usuario_id == current_user.id,
-        Consulta.status != "cancelada"
+        Consulta.status != CONSULTA_CANCELADA
     ).order_by(
         Consulta.data.asc(),
         Consulta.horario.asc()
@@ -123,12 +115,22 @@ def cancelar_consulta(consulta_id):
         flash("Você não pode cancelar esta consulta.", "danger")
         return redirect(url_for("meus_agendamentos"))
 
-    if consulta.status != "agendada":
+    if consulta.status != CONSULTA_AGENDADA:
         flash("Apenas consultas agendadas podem ser canceladas.", "warning")
         return redirect(url_for("meus_agendamentos"))
 
-    consulta.status = "cancelada"
-    database.session.commit()
+    consulta.status = CONSULTA_CANCELADA
+
+    try:
+        database.session.commit()
+    except Exception:
+        database.session.rollback()
+        current_app.logger.exception("Erro ao cancelar consulta")
+        flash(
+            "Não foi possível cancelar a consulta. Tente novamente.",
+            "danger",
+        )
+        return redirect(url_for("meus_agendamentos"))
 
     flash("Consulta cancelada com sucesso!", "success")
     return redirect(url_for("meus_agendamentos"))
@@ -148,12 +150,22 @@ def concluir_consulta(consulta_id):
         flash("Você não pode concluir esta consulta.", "danger")
         return redirect(url_for("medicos"))
 
-    if consulta.status != "agendada":
+    if consulta.status != CONSULTA_AGENDADA:
         flash("Apenas consultas agendadas podem ser concluídas.", "warning")
         return redirect(url_for("medicos"))
 
-    consulta.status = "concluida"
-    database.session.commit()
+    consulta.status = CONSULTA_CONCLUIDA
+
+    try:
+        database.session.commit()
+    except Exception:
+        database.session.rollback()
+        current_app.logger.exception("Erro ao concluir consulta")
+        flash(
+            "Não foi possível concluir a consulta. Tente novamente.",
+            "danger",
+        )
+        return redirect(url_for("medicos"))
 
     flash("Consulta concluída com sucesso!", "success")
     return redirect(url_for("medicos"))

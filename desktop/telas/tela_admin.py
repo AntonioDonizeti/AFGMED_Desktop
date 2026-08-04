@@ -34,6 +34,7 @@ from desktop.estilos import aplicar_estilo
 from projetoafgmed import app, database
 from projetoafgmed.models import Consulta, Medico, Pedido, Produto, Usuario
 from projetoafgmed.servicos_medicos import sincronizar_usuario_medico
+from projetoafgmed.servicos_produtos import ErroProduto, excluir_produto
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -456,6 +457,9 @@ class TelaAdminProdutos(TelaAdminBase):
         editar.clicked.connect(self.editar_produto)
         alternar = QPushButton("Ativar / desativar")
         alternar.clicked.connect(self.alternar_ativo)
+        remover = QPushButton("Excluir")
+        remover.setObjectName("botaoPerigo")
+        remover.clicked.connect(self.remover_produto)
         atualizar = QPushButton("Atualizar")
         atualizar.clicked.connect(self.recarregar)
 
@@ -463,6 +467,7 @@ class TelaAdminProdutos(TelaAdminBase):
         self.area_acoes_topo.addWidget(novo)
         self.area_acoes_topo.addWidget(editar)
         self.area_acoes_topo.addWidget(alternar)
+        self.area_acoes_topo.addWidget(remover)
         self.area_acoes_topo.addWidget(atualizar)
 
         self.tabela = self.criar_tabela(
@@ -546,6 +551,57 @@ class TelaAdminProdutos(TelaAdminBase):
         except Exception as erro:
             database.session.rollback()
             QMessageBox.critical(self, "Erro", str(erro))
+
+    def remover_produto(self):
+        produto_id = self.id_selecionado(self.tabela)
+
+        if produto_id is None:
+            QMessageBox.information(
+                self,
+                "Selecione um produto",
+                "Selecione o produto que deseja excluir.",
+            )
+            return
+
+        linha = self.tabela.currentRow()
+        item_nome = self.tabela.item(linha, 1)
+        nome_produto = item_nome.text() if item_nome else "produto selecionado"
+
+        resposta = QMessageBox.question(
+            self,
+            "Excluir produto",
+            (
+                f"Deseja excluir definitivamente '{nome_produto}'?\n\n"
+                "O produto será removido dos carrinhos, mas continuará "
+                "registrado no histórico dos pedidos."
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+
+        if resposta != QMessageBox.Yes:
+            return
+
+        try:
+            with app.app_context():
+                excluir_produto(produto_id)
+
+            QMessageBox.information(
+                self,
+                "Produto excluído",
+                f"O produto '{nome_produto}' foi excluído com sucesso.",
+            )
+            self.recarregar()
+
+        except ErroProduto as erro:
+            QMessageBox.warning(self, "Não foi possível excluir", str(erro))
+        except Exception as erro:
+            print("ERRO AO EXCLUIR PRODUTO:", erro)
+            QMessageBox.critical(
+                self,
+                "Erro",
+                "Não foi possível excluir o produto. Tente novamente.",
+            )
 
 
 class TelaAdminMedicos(TelaAdminBase):

@@ -15,6 +15,11 @@ from PySide6.QtWidgets import (
 from desktop.estilos import aplicar_estilo
 from projetoafgmed import app, database
 from projetoafgmed.models import Consulta
+from projetoafgmed.status import (
+    CONSULTA_AGENDADA,
+    CONSULTA_CANCELADA,
+    CONSULTA_CONCLUIDA,
+)
 
 from .tela_medicos import abrir_agendamento
 
@@ -89,7 +94,7 @@ class TelaAgendamentos(QWidget):
                         "especialidade": consulta.medico.especialidade or "",
                         "data": consulta.data,
                         "horario": consulta.horario,
-                        "status": consulta.status or "agendada",
+                        "status": consulta.status or CONSULTA_AGENDADA,
                     }
                     for consulta in consultas_banco
                 ]
@@ -141,11 +146,13 @@ class TelaAgendamentos(QWidget):
         informacoes.addWidget(especialidade)
         informacoes.addWidget(detalhe)
 
-        status_valor = (consulta["status"] or "agendada").lower()
+        status_valor = (
+            consulta["status"] or CONSULTA_AGENDADA
+        ).lower()
         status_texto = {
-            "agendada": "Agendada",
-            "concluida": "Concluída",
-            "cancelada": "Cancelada",
+            CONSULTA_AGENDADA: "Agendada",
+            CONSULTA_CONCLUIDA: "Concluída",
+            CONSULTA_CANCELADA: "Cancelada",
         }.get(status_valor, "Em análise")
 
         status = QLabel(status_texto)
@@ -156,7 +163,7 @@ class TelaAgendamentos(QWidget):
         acoes = QHBoxLayout()
         acoes.addWidget(status)
 
-        if status_valor == "agendada":
+        if status_valor == CONSULTA_AGENDADA:
             reagendar = QPushButton("Reagendar")
             reagendar.setObjectName("botaoReagendar")
             reagendar.clicked.connect(
@@ -196,7 +203,7 @@ class TelaAgendamentos(QWidget):
                 if consulta.usuario_id != self.usuario_id:
                     raise ValueError("Você não pode reagendar esta consulta.")
 
-                if consulta.status != "agendada":
+                if consulta.status != CONSULTA_AGENDADA:
                     raise ValueError(
                         "Apenas consultas agendadas podem ser reagendadas."
                     )
@@ -224,8 +231,15 @@ class TelaAgendamentos(QWidget):
             if alterado:
                 self.recarregar()
 
+        except (ValueError, PermissionError) as erro:
+            QMessageBox.warning(self, "Não foi possível reagendar", str(erro))
         except Exception as erro:
-            QMessageBox.critical(self, "Erro", str(erro))
+            print("ERRO AO REAGENDAR CONSULTA:", erro)
+            QMessageBox.critical(
+                self,
+                "Erro",
+                "Não foi possível reagendar a consulta. Tente novamente.",
+            )
 
     def cancelar_consulta(self, consulta_id):
         resposta = QMessageBox.question(
@@ -241,21 +255,27 @@ class TelaAgendamentos(QWidget):
 
         try:
             with app.app_context():
-                consulta = database.session.get(Consulta, consulta_id)
+                try:
+                    consulta = database.session.get(Consulta, consulta_id)
 
-                if consulta is None:
-                    raise ValueError("Consulta não encontrada.")
+                    if consulta is None:
+                        raise ValueError("Consulta não encontrada.")
 
-                if consulta.usuario_id != self.usuario_id:
-                    raise ValueError("Você não pode cancelar esta consulta.")
+                    if consulta.usuario_id != self.usuario_id:
+                        raise PermissionError(
+                            "Você não pode cancelar esta consulta."
+                        )
 
-                if consulta.status != "agendada":
-                    raise ValueError(
-                        "Apenas consultas agendadas podem ser canceladas."
-                    )
+                    if consulta.status != CONSULTA_AGENDADA:
+                        raise ValueError(
+                            "Apenas consultas agendadas podem ser canceladas."
+                        )
 
-                consulta.status = "cancelada"
-                database.session.commit()
+                    consulta.status = CONSULTA_CANCELADA
+                    database.session.commit()
+                except Exception:
+                    database.session.rollback()
+                    raise
 
             QMessageBox.information(
                 self,
@@ -264,9 +284,15 @@ class TelaAgendamentos(QWidget):
             )
             self.recarregar()
 
+        except (ValueError, PermissionError) as erro:
+            QMessageBox.warning(self, "Não foi possível cancelar", str(erro))
         except Exception as erro:
-            database.session.rollback()
-            QMessageBox.critical(self, "Erro", str(erro))
+            print("ERRO AO CANCELAR CONSULTA:", erro)
+            QMessageBox.critical(
+                self,
+                "Erro",
+                "Não foi possível cancelar a consulta. Tente novamente.",
+            )
 
 
 def tela_agendamentos(usuario):
