@@ -1,105 +1,327 @@
-# AFGMED — Sistema de Farmácia e Agendamento Médico
+<div align="center">
 
-O **AFGMED** é um projeto integrador acadêmico desenvolvido para demonstrar, em uma única solução, funcionalidades de uma farmácia digital e de um sistema de agendamento de consultas médicas.
+<img src="projetoafgmed/static/imagens/logo.jpg" alt="Logo AFGMED" width="110">
 
-O projeto possui uma aplicação **web**, construída com Flask, e uma aplicação **desktop**, desenvolvida com PySide6. As duas interfaces utilizam a mesma estrutura de dados e oferecem experiências diferentes de acordo com o perfil do usuário.
+# AFGMED — Plataforma de Saúde Web e Desktop
 
-> **Aviso:** este projeto foi desenvolvido exclusivamente para fins acadêmicos e de demonstração. Ele não representa uma plataforma médica ou farmacêutica em produção e não deve utilizar dados pessoais reais.
+Sistema acadêmico de saúde integrado, desenvolvido em Python, com aplicações **Web (Flask)** e **Desktop (PySide6)** utilizando o mesmo banco de dados.
 
-## Funcionalidades
+O AFGMED reúne agendamento de consultas, gerenciamento de médicos, catálogo de produtos farmacêuticos, carrinho, entrega, pagamentos e painéis específicos para pacientes, médicos e administradores.
 
-### Usuário
+![Python](https://img.shields.io/badge/Python-3.x-3776AB?logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-Web-000000?logo=flask&logoColor=white)
+![PySide6](https://img.shields.io/badge/PySide6-Desktop-41CD52?logo=qt&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-Database-003B57?logo=sqlite&logoColor=white)
+![Bootstrap](https://img.shields.io/badge/Bootstrap-5-7952B3?logo=bootstrap&logoColor=white)
+![Pytest](https://img.shields.io/badge/Pytest-Tests-0A9EDC?logo=pytest&logoColor=white)
 
-- Criação de conta e autenticação;
-- Consulta e atualização do perfil;
-- Visualização e pesquisa de médicos;
-- Agendamento e reagendamento de consultas;
-- Cancelamento e acompanhamento de consultas;
-- Visualização e pesquisa de produtos;
-- Adição, alteração e remoção de produtos do carrinho;
-- Finalização de pedidos;
-- Acompanhamento do histórico e do status dos pedidos;
-- Integração demonstrativa com o Mercado Pago.
+</div>
 
-### Médico
+---
 
-- Acesso identificado pelo perfil de médico;
-- Visualização das consultas vinculadas ao profissional;
-- Acompanhamento dos pacientes e horários agendados;
-- Atualização do status das consultas.
+## Sobre o projeto
 
-### Administrador
+O **AFGMED** foi criado para centralizar serviços de saúde em uma única plataforma.
 
-- Dashboard com indicadores do sistema;
-- Cadastro, edição e remoção de médicos;
-- Cadastro, edição, ativação e desativação de produtos;
-- Controle de produtos destacados;
-- Gerenciamento de consultas;
-- Gerenciamento de pedidos e usuários.
+O sistema permite que pacientes encontrem médicos, agendem consultas, comprem produtos farmacêuticos e acompanhem seus pedidos. Médicos possuem uma área exclusiva para organizar e concluir atendimentos. Administradores gerenciam médicos, produtos, pedidos e a agenda geral.
 
-## Tecnologias utilizadas
+As versões Web e Desktop compartilham:
 
-- Python;
-- Flask;
-- PySide6;
-- SQLAlchemy;
-- SQLite;
-- Flask-Login;
-- Flask-WTF e proteção CSRF;
-- Flask-Bcrypt;
-- HTML5, CSS3 e Bootstrap;
-- QSS para estilização da aplicação desktop;
-- API do Mercado Pago;
-- API do Google Maps;
-- Git e GitHub.
+- o mesmo banco SQLite;
+- os mesmos usuários;
+- os mesmos médicos e produtos;
+- as mesmas consultas e pedidos;
+- as mesmas regras centrais de negócio;
+- permissões equivalentes por perfil.
 
-## Estrutura do projeto
+> Este é um projeto acadêmico e demonstrativo. Não deve ser utilizado em ambiente clínico ou comercial real sem revisão de segurança, privacidade, infraestrutura e conformidade legal.
+
+---
+
+## Tecnologias
+
+### Backend e dados
+
+- Python
+- Flask
+- Flask-SQLAlchemy
+- Flask-Login
+- Flask-Bcrypt
+- Flask-WTF / CSRFProtect
+- SQLite
+- python-dotenv
+
+### Aplicação Web
+
+- Jinja2
+- HTML5
+- CSS3
+- JavaScript
+- Bootstrap 5
+- Bootstrap Icons
+
+### Aplicação Desktop
+
+- PySide6
+- Qt Widgets
+- QSS para estilização
+- QSettings para preferências locais
+
+### Integrações
+
+- Mercado Pago
+- Google Maps
+- ViaCEP
+- Upload de imagens de usuários, médicos e produtos
+
+### Qualidade
+
+- Pytest
+- Testes de rotas, autenticação, permissões e regras de negócio
+
+---
+
+## Arquitetura
 
 ```text
 AFGMED_Desktop/
 ├── desktop/
-│   ├── estilos/              # Temas e arquivos QSS
-│   ├── telas/                # Telas desenvolvidas com PySide6
-│   └── main.py               # Inicialização da aplicação desktop
+│   ├── estilos/                 # Tema, paleta e arquivos QSS
+│   ├── telas/                   # Interfaces da aplicação Desktop
+│   └── main.py                  # Inicialização do PySide6
+│
 ├── projetoafgmed/
-│   ├── instance/             # Banco SQLite demonstrativo
-│   ├── rotas/                # Rotas e controladores Flask
-│   ├── static/               # CSS, imagens e arquivos enviados
-│   ├── templates/            # Templates HTML
-│   ├── __init__.py           # Configuração principal do Flask
-│   ├── forms.py              # Formulários e validações
-│   ├── models.py             # Models do banco de dados
-│   └── servicos_*.py         # Regras de negócio compartilhadas
-├── cria_banco.py             # Criação das tabelas
-├── popular_banco.py          # Inclusão dos dados demonstrativos
-├── tornar_admin.py           # Definição de usuário administrador
-└── requirements.txt          # Dependências do projeto
+│   ├── instance/                # Banco SQLite local
+│   ├── rotas/                   # Rotas Flask separadas por domínio
+│   ├── static/
+│   │   ├── css/
+│   │   ├── fotos_medicos/
+│   │   ├── fotos_perfil/
+│   │   ├── fotos_produtos/
+│   │   └── imagens/
+│   ├── templates/               # Páginas Jinja2
+│   ├── __init__.py              # Configuração Flask e extensões
+│   ├── forms.py                 # Formulários Flask-WTF
+│   ├── main.py                  # Inicialização da aplicação Web
+│   ├── models.py                # Modelos SQLAlchemy
+│   ├── servicos_compras.py      # Carrinho, estoque e pedidos
+│   ├── servicos_consultas.py    # Agendamento e disponibilidade
+│   ├── servicos_medicos.py      # Vínculo entre médico e usuário
+│   ├── servicos_pagamento.py    # Integração Mercado Pago
+│   ├── servicos_produtos.py     # Regras de produtos
+│   └── status.py                # Status padronizados
+│
+├── tests/                       # Testes automatizados
+├── popular_banco.py             # Dados demonstrativos
+├── requirements.txt             # Dependências principais
+├── requirements-test.txt        # Dependências de testes
+└── README.md
 ```
 
-## Pré-requisitos
+A organização separa interface, rotas, modelos e serviços. Dessa forma, regras importantes podem ser reutilizadas pelas versões Web e Desktop.
 
-Antes de começar, instale:
+---
 
-- Python 3.11 ou superior;
-- Git;
-- Um editor como PyCharm ou Visual Studio Code.
+## Decisões técnicas
+
+### Banco compartilhado
+
+As aplicações Web e Desktop utilizam o mesmo banco SQLite. Uma alteração feita em uma interface fica disponível para a outra sem duplicação de dados.
+
+### Serviços centralizados
+
+As principais regras foram retiradas das telas e concentradas em módulos de serviço:
+
+- `servicos_consultas.py`
+- `servicos_compras.py`
+- `servicos_pagamento.py`
+- `servicos_medicos.py`
+- `servicos_produtos.py`
+
+Isso reduz divergências entre Web e Desktop e facilita testes e manutenção.
+
+### Controle de acesso por perfil
+
+O sistema possui três perspectivas:
+
+- paciente;
+- médico;
+- administrador.
+
+As interfaces exibem apenas os recursos autorizados para cada perfil, e as rotas Web também aplicam validações no backend.
+
+### Estoque após pagamento
+
+Adicionar um produto ao carrinho não reduz o estoque. A baixa ocorre apenas quando o pagamento é aprovado.
+
+Antes da baixa, todos os itens do pedido são validados para impedir atualização parcial do estoque.
+
+### Histórico de pedidos
+
+Os dados do produto são copiados para o item do pedido. Assim, o histórico mantém nome, descrição, foto, quantidade e preço mesmo quando o produto original é removido posteriormente.
+
+### Consultas abertas primeiro
+
+Nas agendas, consultas agendadas aparecem antes das encerradas. As consultas abertas são ordenadas da data e horário mais próximos para os mais distantes.
+
+### Status padronizados
+
+Os status de consultas, carrinhos, pedidos e pagamentos ficam centralizados em `status.py`, evitando valores diferentes para a mesma situação.
+
+---
+
+## Funcionalidades
+
+## Paciente
+
+- criação de conta e login;
+- atualização de perfil e endereço;
+- busca de médicos por nome ou especialidade;
+- agendamento de consulta;
+- reagendamento de consulta própria;
+- cancelamento de consulta própria;
+- bloqueio de datas e horários que já passaram;
+- bloqueio de horários ocupados;
+- catálogo e pesquisa de produtos;
+- carrinho lateral;
+- alteração de quantidade e remoção de itens;
+- validação de estoque;
+- preenchimento de endereço;
+- consulta de CEP;
+- pagamento pelo Mercado Pago;
+- acompanhamento de pedidos e pagamentos.
+
+## Médico
+
+- login com conta vinculada ao cadastro profissional;
+- acesso exclusivo à área médica;
+- visualização das próprias consultas;
+- filtro de consultas agendadas para hoje;
+- pesquisa por paciente, data e contato;
+- consultas abertas exibidas primeiro;
+- conclusão de atendimento;
+- acesso ao próprio perfil.
+
+O médico não possui acesso a:
+
+- catálogo de produtos;
+- carrinho;
+- entrega;
+- pedidos de compra;
+- agendamento como paciente;
+- cancelamento de consulta.
+
+## Administrador
+
+- dashboard administrativo;
+- cadastro e edição de médicos;
+- criação automática ou vínculo de conta médica;
+- cadastro, edição, ativação e exclusão de produtos;
+- controle de estoque;
+- manutenção de produtos em destaque na Web;
+- visualização de todos os pedidos;
+- pesquisa e filtro em Pedidos gerais;
+- visualização de todas as consultas;
+- pesquisa e filtro em Agenda geral;
+- visão administrativa sem alterar o atendimento médico.
+
+---
+
+## Fluxo de consultas
+
+1. O paciente escolhe um médico.
+2. O sistema exibe somente horários válidos.
+3. Horários ocupados e horários passados são bloqueados.
+4. A consulta é criada com status `agendada`.
+5. O paciente pode reagendar ou cancelar a própria consulta.
+6. O médico visualiza o atendimento em sua agenda.
+7. Após o atendimento, o médico pode marcar a consulta como `concluida`.
+
+Horários configurados atualmente:
+
+```text
+09:00
+10:00
+11:00
+14:00
+15:00
+16:00
+```
+
+---
+
+## Fluxo de compra e pagamento
+
+1. O paciente adiciona produtos ao carrinho.
+2. O sistema valida disponibilidade e quantidade.
+3. O endereço de entrega é informado.
+4. Um pedido é criado com uma cópia dos itens.
+5. O Mercado Pago gera o checkout.
+6. O status é sincronizado pelo retorno, consulta ou webhook.
+7. Após a aprovação, o estoque é reduzido.
+8. O carrinho é finalizado e o pedido fica disponível no histórico.
+
+---
+
+## Segurança
+
+- senhas armazenadas com BCrypt;
+- proteção CSRF nos formulários Web;
+- autenticação com Flask-Login;
+- validação de propriedade de consultas, pedidos e itens;
+- proteção de rotas administrativas;
+- separação de permissões por perfil;
+- credenciais externas em variáveis de ambiente;
+- validação de estoque no backend;
+- uso de nomes seguros para arquivos enviados;
+- prevenção de acesso médico a rotas de compras.
+
+> Nunca envie o arquivo `.env`, tokens, senhas ou o banco de produção para o GitHub.
+
+---
+
+## Configuração
+
+Crie um arquivo `.env` na raiz do projeto:
+
+```env
+SECRET_KEY=troque-por-uma-chave-segura
+DATABASE_PATH=projetoafgmed/instance/afgmed.db
+
+MERCADO_PAGO_ACCESS_TOKEN=
+APP_BASE_URL=http://127.0.0.1:5000
+
+GOOGLE_MAPS_API_KEY=
+```
+
+### Variáveis
+
+| Variável | Descrição |
+|---|---|
+| `SECRET_KEY` | Chave usada pelo Flask e pela proteção CSRF |
+| `DATABASE_PATH` | Caminho do banco SQLite compartilhado |
+| `MERCADO_PAGO_ACCESS_TOKEN` | Token da integração com Mercado Pago |
+| `APP_BASE_URL` | URL pública ou local usada nos retornos de pagamento |
+| `GOOGLE_MAPS_API_KEY` | Chave da integração de mapas e localização |
+
+---
 
 ## Instalação
 
-### 1. Clone o repositório
+### 1. Clonar o repositório
 
 ```bash
 git clone https://github.com/AntonioDonizeti/AFGMED_Desktop.git
 cd AFGMED_Desktop
 ```
 
-### 2. Crie o ambiente virtual
+### 2. Criar o ambiente virtual
 
 No Windows:
 
-```bash
+```powershell
 python -m venv .venv
-.venv\Scripts\activate
+.\.venv\Scripts\activate
 ```
 
 No Linux ou macOS:
@@ -109,141 +331,180 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Instale as dependências
+### 3. Instalar as dependências
 
 ```bash
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 4. Configure as variáveis de ambiente
-
-Crie um arquivo chamado `.env` na pasta principal:
-
-```env
-SECRET_KEY=adicione-uma-chave-local
-DATABASE_PATH=projetoafgmed/instance/afgmed.db
-GOOGLE_MAPS_API_KEY=
-MERCADO_PAGO_ACCESS_TOKEN=
-APP_BASE_URL=
-```
-
-Para gerar uma chave local:
+Para executar os testes:
 
 ```bash
-python chave.py
+pip install -r requirements-test.txt
 ```
 
-As integrações externas são opcionais para a demonstração das funcionalidades principais.
+### 4. Configurar o ambiente
 
-## Preparação do banco de dados
+Crie o arquivo `.env` conforme o exemplo da seção anterior.
 
-Para criar as tabelas:
+### 5. Preparar o banco
 
-```bash
-python cria_banco.py
+Se o banco já estiver presente e configurado, esta etapa pode ser ignorada.
+
+Para criar as tabelas em uma instalação nova:
+
+```powershell
+python -c "from projetoafgmed import app, database; contexto=app.app_context(); contexto.push(); database.create_all(); contexto.pop()"
 ```
 
-Para cadastrar ou atualizar os médicos e produtos demonstrativos:
+Para cadastrar médicos e produtos demonstrativos:
 
-```bash
+```powershell
 python popular_banco.py
 ```
 
-O script de população pode ser executado novamente: registros encontrados são atualizados em vez de duplicados.
+As contas médicas de demonstração usam:
 
-## Execução
-
-### Aplicação desktop
-
-```bash
-python -m desktop.main
+```text
+Login: e-mail cadastrado do médico
+Senha: 123456
 ```
 
-### Aplicação web
+> A senha padrão é destinada somente ao ambiente acadêmico e de testes.
 
-```bash
-python -m projetoafgmed.main
+---
+
+## Executando a aplicação
+
+### Versão Web
+
+```powershell
+python projetoafgmed\main.py
 ```
 
-Depois, acesse no navegador o endereço exibido pelo Flask no terminal, normalmente:
+A aplicação ficará disponível normalmente em:
 
 ```text
 http://127.0.0.1:5000
 ```
 
-## Acesso demonstrativo
+### Versão Desktop
 
-É possível criar um usuário comum pela tela de cadastro.
-
-Os acessos de médico criados pelo sistema utilizam uma senha padrão somente para demonstração acadêmica. Em um ambiente de produção, essa senha deverá ser substituída por uma senha temporária individual, com troca obrigatória no primeiro acesso.
-
-Para transformar um usuário existente em administrador, revise o e-mail configurado em `tornar_admin.py` e execute:
-
-```bash
-python tornar_admin.py
+```powershell
+python desktop\main.py
 ```
 
-Utilize somente contas e informações fictícias durante a apresentação.
+As duas versões devem apontar para o mesmo valor de `DATABASE_PATH`.
 
-## Segurança e privacidade
+---
 
-O projeto utiliza:
+## Testes
 
-- Hash de senhas com Bcrypt;
-- Proteção CSRF nos formulários web;
-- Controle de sessão com Flask-Login;
-- Verificação de permissões por tipo de usuário;
-- Consultas ao banco realizadas pelo SQLAlchemy;
-- Variáveis de ambiente para chaves e tokens externos;
-- Validação de extensões e geração de nomes únicos para fotos de perfil.
+Executar toda a suíte:
 
-Por se tratar de um projeto acadêmico, recomenda-se não cadastrar dados pessoais, médicos, financeiros ou credenciais reais. O arquivo `.env` nunca deve ser enviado ao repositório.
+```powershell
+python -m pytest -v
+```
 
-## Limitações conhecidas
+No Windows, também é possível usar:
 
-- O SQLite foi adotado por simplicidade acadêmica;
-- A integração de pagamentos depende de configuração externa;
-- Os dados cadastrados para apresentação são fictícios;
-- O sistema não substitui atendimento médico ou farmacêutico;
-- Algumas medidas adicionais seriam necessárias antes de uma utilização em produção.
+```powershell
+.\executar_testes.bat
+```
 
-## Melhorias futuras
+Os testes verificam, entre outros pontos:
 
-- Recuperação e alteração de senha;
-- Troca obrigatória da senha no primeiro acesso;
-- Confirmação de conta por e-mail;
-- Autenticação em dois fatores;
-- Testes automatizados;
-- Migrações de banco de dados com Flask-Migrate;
-- Registro de eventos com logging;
-- Validação completa dos webhooks de pagamento;
-- Empacotamento da aplicação desktop em um executável;
-- Implantação da aplicação web em um servidor;
-- Substituição do SQLite por PostgreSQL em um cenário de produção.
+- inicialização da aplicação;
+- autenticação;
+- registro de rotas;
+- permissões por perfil;
+- consultas e conflitos de horário;
+- carrinho e estoque;
+- pedidos;
+- pagamentos;
+- serviços compartilhados.
 
-## Objetivo acadêmico
+---
 
-O AFGMED permite aplicar, de forma integrada, conhecimentos de:
+## Rotas Web principais
 
-- Lógica de programação;
-- Desenvolvimento orientado a objetos;
-- Interfaces gráficas;
-- Desenvolvimento web;
-- Banco de dados relacional;
-- Autenticação e autorização;
-- Integração com serviços externos;
-- Versionamento de código;
-- Organização e documentação de software.
+| Área | Rota |
+|---|---|
+| Home | `/` |
+| Criar conta | `/criar-conta` |
+| Login | `/login` |
+| Perfil | `/perfil` |
+| Médicos | `/medicos` |
+| Agendar ou reagendar | `/consultas/<medico_id>` |
+| Meus agendamentos | `/meus_agendamentos` |
+| Produtos | `/produtos` |
+| Carrinho | `/ver-carrinho` |
+| Entrega | `/entrega/<id_carrinho>` |
+| Minhas compras | `/minhas-compras` |
+| Pedidos gerais — admin | `/admin/pedidos-gerais` |
+| Agenda geral — admin | `/admin/agenda-geral` |
+| Sucesso do pagamento | `/pagamento/sucesso` |
+| Falha do pagamento | `/pagamento/falha` |
+| Pagamento pendente | `/pagamento/pendente` |
+| Webhook Mercado Pago | `/webhook/mercado-pago` |
 
-## Autoria
+---
 
-Projeto integrador desenvolvido para fins educacionais.
+## Perfis e permissões
 
-- Antonio Donizetti;
-- Fabricio Ferreira;
-- Giovana Matos;
-- Turma TI-101;
-- Curso Técnico em Informática — SENAC;
-- Professores Leonardo Alberto, Nathan Branco e Adriano da Silva;
-- Ano 2026.
+| Recurso | Paciente | Médico | Administrador |
+|---|:---:|:---:|:---:|
+| Produtos e carrinho | Sim | Não | Sim |
+| Realizar compra | Sim | Não | Sim |
+| Agendar consulta própria | Sim | Não | Sim |
+| Reagendar consulta própria | Sim | Não | Sim |
+| Cancelar consulta própria | Sim | Não | Sim |
+| Visualizar agenda profissional | Não | Sim | Visão geral |
+| Concluir consulta | Não | Sim | Não |
+| Gerenciar produtos | Não | Não | Sim |
+| Gerenciar médicos | Não | Não | Sim |
+| Visualizar todos os pedidos | Não | Não | Sim |
+| Visualizar todas as consultas | Não | Não | Sim |
+
+---
+
+## Próximas melhorias
+
+- migração do SQLite para PostgreSQL;
+- envio de confirmação de consulta por e-mail;
+- recuperação de senha;
+- notificações de pedidos e agendamentos;
+- logs administrativos;
+- paginação nas listagens;
+- Docker para ambiente de desenvolvimento;
+- pipeline de integração contínua;
+- cobertura de testes ampliada;
+- criação de API REST;
+- relatórios administrativos.
+
+---
+
+## Autor
+
+**Antonio Donizeti** e **Fabricio Ferreira**
+
+- GitHub: [@AntonioDonizeti](https://github.com/AntonioDonizeti) / [@FabricioF97](https://github.com/FabricioF97)
+- Repositório: [AFGMED_Desktop](https://github.com/AntonioDonizeti/AFGMED_Desktop)
+
+---
+
+## Aviso
+
+O AFGMED é um projeto acadêmico desenvolvido para estudo de:
+
+- Python;
+- aplicações Web com Flask;
+- aplicações Desktop com PySide6;
+- banco de dados com SQLAlchemy;
+- autenticação e permissões;
+- integração de pagamentos;
+- testes automatizados;
+- compartilhamento de regras entre interfaces.
+
+Não se trata de um sistema médico homologado.
