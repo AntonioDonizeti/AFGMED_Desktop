@@ -65,7 +65,9 @@ def abrir_tela_home(janela_anterior, usuario):
     marca = QLabel("AFGMED")
     marca.setObjectName("marcaHome")
 
-    submarca = QLabel("Saúde integrada — Web e Desktop")
+    submarca = QLabel(
+        "Saúde integrada — Web e Desktop"
+    )
     submarca.setObjectName("submarcaHome")
 
     area_marca.addWidget(marca)
@@ -76,30 +78,57 @@ def abrir_tela_home(janela_anterior, usuario):
         f"{getattr(usuario, 'sobrenome', '')}"
     ).strip()
 
-    is_admin = bool(getattr(usuario, "is_admin", False))
-    is_medico = bool(getattr(usuario, "is_medico", False))
+    is_admin = bool(
+        getattr(usuario, "is_admin", False)
+    )
+    is_medico = bool(
+        getattr(usuario, "is_medico", False)
+    )
 
     if is_admin:
         nome_perfil = "Administrador"
         tipo_perfil = "admin"
+
     elif is_medico:
         nome_perfil = "Médico"
         tipo_perfil = "medico"
+
     else:
         nome_perfil = "Paciente"
         tipo_perfil = "usuario"
 
     badge_perfil = QLabel(nome_perfil)
-    badge_perfil.setObjectName("badgePerfilHome")
-    badge_perfil.setProperty("tipoPerfil", tipo_perfil)
-    badge_perfil.setAlignment(Qt.AlignCenter)
+    badge_perfil.setObjectName(
+        "badgePerfilHome"
+    )
+    badge_perfil.setProperty(
+        "tipoPerfil",
+        tipo_perfil,
+    )
+    badge_perfil.setAlignment(
+        Qt.AlignCenter
+    )
 
-    usuario_label = QLabel(nome_completo or getattr(usuario, "email", "Usuário"))
-    usuario_label.setObjectName("usuarioHome")
-    usuario_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+    usuario_label = QLabel(
+        nome_completo
+        or getattr(
+            usuario,
+            "email",
+            "Usuário",
+        )
+    )
+    usuario_label.setObjectName(
+        "usuarioHome"
+    )
+    usuario_label.setAlignment(
+        Qt.AlignRight
+        | Qt.AlignVCenter
+    )
 
     botao_logout = QPushButton("Sair")
-    botao_logout.setObjectName("botaoLogout")
+    botao_logout.setObjectName(
+        "botaoLogout"
+    )
     botao_logout.setMinimumWidth(85)
 
     layout_topo.addLayout(area_marca)
@@ -117,8 +146,16 @@ def abrir_tela_home(janela_anterior, usuario):
     abas.setElideMode(Qt.ElideNone)
 
     mapa_abas = {}
-    def adicionar_aba(chave, widget, titulo):
-        indice = abas.addTab(widget, titulo)
+
+    def adicionar_aba(
+        chave,
+        widget,
+        titulo,
+    ):
+        indice = abas.addTab(
+            widget,
+            titulo,
+        )
         mapa_abas[chave] = indice
         return widget
 
@@ -129,82 +166,169 @@ def abrir_tela_home(janela_anterior, usuario):
     )
 
     if is_admin:
-        produtos = adicionar_aba("produtos", TelaProdutos(usuario), "Produtos")
-        carrinho = adicionar_aba("carrinho", TelaCarrinho(usuario), "Carrinho")
-        adicionar_aba(
-            "pedidos", TelaMeusPedidos(usuario), "Meus pedidos"
+        produtos = adicionar_aba(
+            "produtos",
+            TelaProdutos(usuario),
+            "Produtos",
         )
-        adicionar_aba(
-            "consultas", TelaMedicos(usuario), "Consultas"
-        )
-        adicionar_aba(
-            "agendamentos", TelaAgendamentos(usuario), "Meus agendamentos"
-        )
-        adicionar_aba(
-            "admin_produtos", TelaAdminProdutos(), "Gerenciar produtos"
-        )
-        adicionar_aba(
-            "admin_medicos", TelaAdminMedicos(), "Gerenciar médicos"
-        )
-        adicionar_aba(
-            "admin_pedidos", TelaAdminPedidos(), "Pedidos gerais"
-        )
-        adicionar_aba(
-            "admin_consultas", TelaAdminConsultas(), "Agenda geral"
-        )
-        adicionar_aba("perfil", tela_perfil(usuario), "Perfil")
 
-        produtos.carrinho_alterado.connect(carrinho.recarregar)
-        carrinho.estoque_alterado.connect(produtos.recarregar)
+        carrinho = adicionar_aba(
+            "carrinho",
+            TelaCarrinho(usuario),
+            "Carrinho",
+        )
 
+        adicionar_aba(
+            "pedidos",
+            TelaMeusPedidos(usuario),
+            "Meus pedidos",
+        )
+
+        adicionar_aba(
+            "consultas",
+            TelaMedicos(usuario),
+            "Consultas",
+        )
+
+        adicionar_aba(
+            "agendamentos",
+            TelaAgendamentos(usuario),
+            "Meus agendamentos",
+        )
+
+        adicionar_aba(
+            "admin_produtos",
+            TelaAdminProdutos(),
+            "Gerenciar produtos",
+        )
+
+        adicionar_aba(
+            "admin_medicos",
+            TelaAdminMedicos(),
+            "Gerenciar médicos",
+        )
+
+        adicionar_aba(
+            "admin_pedidos",
+            TelaAdminPedidos(),
+            "Pedidos gerais",
+        )
+
+        adicionar_aba(
+            "admin_consultas",
+            TelaAdminConsultas(),
+            "Agenda geral",
+        )
+
+        adicionar_aba(
+            "perfil",
+            tela_perfil(usuario),
+            "Perfil",
+        )
+
+        produtos.carrinho_alterado.connect(
+            carrinho.recarregar
+        )
+        carrinho.estoque_alterado.connect(
+            produtos.recarregar
+        )
 
     elif is_medico:
+        # Médicos acessam somente dashboard,
+        # agenda profissional e perfil.
         adicionar_aba(
             "consultas_medico",
             TelaConsultasMedico(usuario),
             "Minhas consultas",
         )
-        adicionar_aba("produtos", TelaProdutos(usuario), "Produtos")
-        adicionar_aba("perfil", tela_perfil(usuario), "Perfil")
+
+        adicionar_aba(
+            "perfil",
+            tela_perfil(usuario),
+            "Perfil",
+        )
 
     else:
-        produtos = adicionar_aba("produtos", TelaProdutos(usuario), "Produtos")
-        carrinho = adicionar_aba("carrinho", TelaCarrinho(usuario), "Carrinho")
-        adicionar_aba("pedidos", TelaMeusPedidos(usuario), "Meus pedidos")
-        adicionar_aba("consultas", TelaMedicos(usuario), "Consultas")
-        adicionar_aba(
-            "agendamentos", TelaAgendamentos(usuario), "Meus agendamentos"
+        produtos = adicionar_aba(
+            "produtos",
+            TelaProdutos(usuario),
+            "Produtos",
         )
-        adicionar_aba("perfil", tela_perfil(usuario), "Perfil")
 
-        produtos.carrinho_alterado.connect(carrinho.recarregar)
-        carrinho.estoque_alterado.connect(produtos.recarregar)
+        carrinho = adicionar_aba(
+            "carrinho",
+            TelaCarrinho(usuario),
+            "Carrinho",
+        )
+
+        adicionar_aba(
+            "pedidos",
+            TelaMeusPedidos(usuario),
+            "Meus pedidos",
+        )
+
+        adicionar_aba(
+            "consultas",
+            TelaMedicos(usuario),
+            "Consultas",
+        )
+
+        adicionar_aba(
+            "agendamentos",
+            TelaAgendamentos(usuario),
+            "Meus agendamentos",
+        )
+
+        adicionar_aba(
+            "perfil",
+            tela_perfil(usuario),
+            "Perfil",
+        )
+
+        produtos.carrinho_alterado.connect(
+            carrinho.recarregar
+        )
+        carrinho.estoque_alterado.connect(
+            produtos.recarregar
+        )
 
     def navegar_para(chave):
         indice = mapa_abas.get(chave)
+
         if indice is not None:
             abas.setCurrentIndex(indice)
 
-    dashboard.navegar.connect(navegar_para)
+    dashboard.navegar.connect(
+        navegar_para
+    )
 
     def atualizar_aba(indice):
         widget_atual = abas.widget(indice)
-        metodo_recarregar = getattr(widget_atual, "recarregar", None)
+
+        metodo_recarregar = getattr(
+            widget_atual,
+            "recarregar",
+            None,
+        )
 
         if callable(metodo_recarregar):
             metodo_recarregar()
 
-        # Mantém o dashboard atualizado quando outras telas alteram o banco.
         if widget_atual is dashboard:
             dashboard.recarregar()
 
-    abas.currentChanged.connect(atualizar_aba)
+    abas.currentChanged.connect(
+        atualizar_aba
+    )
 
     def logout():
         resposta = QMessageBox.question(
             janela_home,
             "Sair da conta",
-            "Deseja encerrar esta sessão e voltar para o login?",
+            (
+                "Deseja encerrar esta sessão "
+                "e voltar para o login?"
+            ),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -215,7 +339,9 @@ def abrir_tela_home(janela_anterior, usuario):
         janela_home.usuario = None
         janela_home.close()
 
-        from .tela_login import abrir_tela_login
+        from .tela_login import (
+            abrir_tela_login,
+        )
 
         abrir_tela_login()
 

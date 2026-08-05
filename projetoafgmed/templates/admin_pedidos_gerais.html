@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Pedidos gerais - AFGMED{% endblock %}
+
+{% block content %}
+<div class="admin-visao-page">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3 mb-4">
+        <div>
+            <span class="badge bg-primary mb-2">
+                <i class="bi bi-shield-check"></i> Administração
+            </span>
+            <h2 class="fw-bold mb-1">Pedidos gerais</h2>
+            <p class="text-muted mb-0">
+                Visualização de todas as compras e solicitações de pagamento registradas.
+            </p>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4 admin-resumo-grid">
+        <div class="col-6 col-xl-3"><div class="admin-resumo-card"><small>Total</small><strong>{{ resumo.total }}</strong></div></div>
+        <div class="col-6 col-xl-3"><div class="admin-resumo-card status-pendente"><small>Pendentes</small><strong>{{ resumo.pendentes }}</strong></div></div>
+        <div class="col-6 col-xl-3"><div class="admin-resumo-card status-pago"><small>Pagos</small><strong>{{ resumo.pagos }}</strong></div></div>
+        <div class="col-6 col-xl-3"><div class="admin-resumo-card status-falha"><small>Falhas</small><strong>{{ resumo.falhas }}</strong></div></div>
+    </div>
+
+    <form method="GET" class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-body p-3 p-md-4">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-lg-7">
+                    <label class="form-label" for="buscaPedidos">Pesquisar</label>
+                    <input class="form-control" id="buscaPedidos" name="busca" value="{{ busca }}"
+                           placeholder="Pedido, cliente, produto, cidade, CEP ou pagamento...">
+                </div>
+                <div class="col-12 col-md-7 col-lg-3">
+                    <label class="form-label" for="statusPedidos">Status</label>
+                    <select class="form-select" id="statusPedidos" name="status">
+                        <option value="todos" {% if status_atual == 'todos' %}selected{% endif %}>Todos</option>
+                        <option value="pendente" {% if status_atual == 'pendente' %}selected{% endif %}>Pendentes</option>
+                        <option value="pago" {% if status_atual == 'pago' %}selected{% endif %}>Pagos</option>
+                        <option value="falha" {% if status_atual == 'falha' %}selected{% endif %}>Falha / cancelados</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-5 col-lg-2 d-grid">
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-search"></i> Filtrar</button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 admin-tabela">
+                <thead>
+                    <tr>
+                        <th>Pedido</th>
+                        <th>Cliente</th>
+                        <th>Data</th>
+                        <th>Itens</th>
+                        <th>Total</th>
+                        <th>Status</th>
+                        <th>Entrega</th>
+                        <th class="text-end">Detalhes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in pedidos %}
+                        {% set pedido = item.pedido %}
+                        <tr>
+                            <td class="fw-bold">#{{ pedido.id }}</td>
+                            <td>
+                                <strong>{{ item.cliente }}</strong><br>
+                                <small class="text-muted">{{ item.email or 'E-mail não informado' }}</small>
+                            </td>
+                            <td>{{ pedido.data_criacao.strftime('%d/%m/%Y %H:%M') if pedido.data_criacao else '—' }}</td>
+                            <td>{{ item.quantidade_itens }}</td>
+                            <td class="fw-bold">R$ {{ '%.2f' % pedido.total }}</td>
+                            <td>
+                                <span class="badge {{ item.status_visual.classe }}">
+                                    <i class="bi {{ item.status_visual.icone }}"></i>
+                                    {{ item.status_visual.texto }}
+                                </span>
+                            </td>
+                            <td>{{ pedido.cidade }}/{{ pedido.estado }}</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-primary" type="button"
+                                        data-bs-toggle="modal" data-bs-target="#pedidoModal{{ pedido.id }}">
+                                    Ver tudo
+                                </button>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="8" class="text-center text-muted py-5">Nenhum pedido encontrado.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% for item in pedidos %}
+    {% set pedido = item.pedido %}
+    <div class="modal fade" id="pedidoModal{{ pedido.id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title fw-bold">Pedido #{{ pedido.id }}</h5>
+                        <small class="text-muted">{{ item.cliente }} — {{ item.email }}</small>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <h6 class="fw-bold">Produtos</h6>
+                    {% for produto in pedido.itens %}
+                        <div class="d-flex justify-content-between gap-3 border rounded-3 p-3 mb-2">
+                            <div>
+                                <strong>{{ produto.nome_produto }}</strong><br>
+                                <small class="text-muted">{{ produto.quantidade }} × R$ {{ '%.2f' % produto.preco_unitario }}</small>
+                            </div>
+                            <strong>R$ {{ '%.2f' % produto.subtotal }}</strong>
+                        </div>
+                    {% endfor %}
+
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-6">
+                            <div class="admin-detalhe-box h-100">
+                                <small>Entrega</small>
+                                <strong>{{ pedido.endereco }}</strong>
+                                <span>{{ pedido.cidade }} - {{ pedido.estado }}, CEP {{ pedido.cep }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="admin-detalhe-box h-100">
+                                <small>Pagamento</small>
+                                <strong>{{ pedido.status_pagamento or '—' }}</strong>
+                                <span>ID: {{ pedido.mercado_pago_payment_id or 'não informado' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <strong class="me-auto">Total: R$ {{ '%.2f' % pedido.total }}</strong>
+                    <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endfor %}
+
+<style>
+.admin-resumo-card{height:100%;padding:18px 20px;background:#fff;border:1px solid #dbe2e8;border-left:4px solid #316a96;border-radius:12px;box-shadow:0 4px 14px rgba(9,24,39,.05)}
+.admin-resumo-card small{display:block;color:#617080;font-weight:650}.admin-resumo-card strong{display:block;color:#10263b;font-size:1.8rem}.admin-resumo-card.status-pendente{border-left-color:#a56b15}.admin-resumo-card.status-pago{border-left-color:#237a57}.admin-resumo-card.status-falha{border-left-color:#a93f46}
+.admin-tabela thead th{white-space:nowrap;color:#fff;background:#17344f;border-color:#214764;padding:13px 14px}.admin-tabela td{padding:13px 14px}.admin-detalhe-box{display:flex;flex-direction:column;gap:3px;padding:15px;background:#f6f8fa;border:1px solid #dde3e8;border-radius:10px}.admin-detalhe-box small{color:#617080}.admin-detalhe-box strong{color:#10263b}
+</style>
+{% endblock %}

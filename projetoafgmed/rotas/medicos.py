@@ -1,49 +1,164 @@
-from flask import render_template, redirect, url_for, flash, current_app, request
-from flask_login import login_required, current_user
-from werkzeug.utils import secure_filename
-from sqlalchemy import func
+from datetime import date
 import os
 
+from flask import current_app, flash, redirect, render_template, request, url_for
+from flask_login import current_user, login_required
+from sqlalchemy import func
+from werkzeug.utils import secure_filename
+
 from projetoafgmed import app, database
-from projetoafgmed.models import Usuario, Medico, Consulta
 from projetoafgmed.forms import FormMedico
+from projetoafgmed.models import Consulta, Medico, Usuario
 from projetoafgmed.servicos_consultas import status_visual_consulta
 from projetoafgmed.servicos_medicos import (
     medico_logado,
     sincronizar_usuario_medico,
 )
+from projetoafgmed.status import (
+    CONSULTA_AGENDADA,
+    CONSULTA_CANCELADA,
+    CONSULTA_CONCLUIDA,
+)
+
+
+def _ordenar_consultas_medico(consultas):
+    """Mantém abertas primeiro; fechadas ficam da mais recente para a antiga."""
+    abertas = sorted(
+        (
+            consulta
+            for consulta in consultas
+            if consulta.status == CONSULTA_AGENDADA
+        ),
+        key=lambda consulta: (
+            consulta.data or date.max,
+            consulta.horario or "",
+        ),
+    )
+
+    encerradas = sorted(
+        (
+            consulta
+            for consulta in consultas
+            if consulta.status != CONSULTA_AGENDADA
+        ),
+        key=lambda consulta: (
+            consulta.data or date.min,
+            consulta.horario or "",
+        ),
+        reverse=True,
+    )
+
+    return abertas + encerradas
 
 
 @app.route("/medicos")
 @login_required
 def medicos():
-    if getattr(current_user, "is_medico", False) and not getattr(current_user, "is_admin", False):
+    if (
+        getattr(current_user, "is_medico", False)
+        and not getattr(current_user, "is_admin", False)
+    ):
         medico = medico_logado()
+        filtro_atual = (request.args.get("filtro") or "todas").strip().lower()
+        filtros_validos = {
+            "todas",
+            "hoje",
+            CONSULTA_AGENDADA,
+            CONSULTA_CONCLUIDA,
+            CONSULTA_CANCELADA,
+        }
+
+        if filtro_atual not in filtros_validos:
+            filtro_atual = "todas"
 
         if not medico:
-            flash("Seu usuário médico ainda não está vinculado a um cadastro médico.", "warning")
+            flash(
+                "Seu usuário médico ainda não está vinculado a um cadastro médico.",
+                "warning",
+            )
             return render_template(
                 "consultas_medico.html",
                 medico=None,
                 consultas=[],
-                status_visual_consulta=status_visual_consulta
+                filtro_atual=filtro_atual,
+                resumo={
+                    "total": 0,
+                    "hoje": 0,
+                    "agendadas": 0,
+                    "concluidas": 0,
+                    "canceladas": 0,
+                },
+                status_visual_consulta=status_visual_consulta,
             )
 
-        consultas_medico = Consulta.query.filter_by(
+        todas_consultas = Consulta.query.filter_by(
             medico_id=medico.id
-        ).order_by(
-            Consulta.data.desc(),
-            Consulta.horario.asc()
         ).all()
+
+        consultas_ordenadas = _ordenar_consultas_medico(todas_consultas)
+        hoje = date.today()
+
+        resumo = {
+            "total": len(todas_consultas),
+            "hoje": sum(
+                1
+                for consulta in todas_consultas
+                if (
+                    consulta.status == CONSULTA_AGENDADA
+                    and consulta.data == hoje
+                )
+            ),
+            "agendadas": sum(
+                1
+                for consulta in todas_consultas
+                if consulta.status == CONSULTA_AGENDADA
+            ),
+            "concluidas": sum(
+                1
+                for consulta in todas_consultas
+                if consulta.status == CONSULTA_CONCLUIDA
+            ),
+            "canceladas": sum(
+                1
+                for consulta in todas_consultas
+                if consulta.status == CONSULTA_CANCELADA
+            ),
+        }
+
+        if filtro_atual == "hoje":
+            consultas_exibidas = [
+                consulta
+                for consulta in consultas_ordenadas
+                if (
+                    consulta.status == CONSULTA_AGENDADA
+                    and consulta.data == hoje
+                )
+            ]
+        elif filtro_atual == "todas":
+            consultas_exibidas = consultas_ordenadas
+        else:
+            consultas_exibidas = [
+                consulta
+                for consulta in consultas_ordenadas
+                if consulta.status == filtro_atual
+            ]
 
         return render_template(
             "consultas_medico.html",
             medico=medico,
-            consultas=consultas_medico,
-            status_visual_consulta=status_visual_consulta
+            consultas=consultas_exibidas,
+            filtro_atual=filtro_atual,
+            resumo=resumo,
+            status_visual_consulta=status_visual_consulta,
         )
 
-    return render_template("medicos.html", medicos=Medico.query.all())
+    return render_template(
+        "medicos.html",
+        medicos=Medico.query.order_by(
+            Medico.nome.asc(),
+            Medico.sobrenome.asc(),
+        ).all(),
+    )
 
 
 @app.route("/cadastro-medico", methods=["GET", "POST"])

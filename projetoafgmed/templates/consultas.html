@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Agendar Consulta - AFGMED{% endblock %}
+{% block title %}{{ "Reagendar Consulta" if reagendando else "Agendar Consulta" }} - AFGMED{% endblock %}
 
 {% block content %}
 <div class="consulta-page">
@@ -10,15 +10,19 @@
             <div class="col-lg-8">
                 <span class="consulta-badge">
                     <i class="bi bi-calendar2-heart"></i>
-                    Agendamento AFGMED
+                    {{ "Reagendamento AFGMED" if reagendando else "Agendamento AFGMED" }}
                 </span>
 
                 <h1 class="fw-bold mt-3 mb-2">
-                    Marcar consulta
+                    {{ "Reagendar consulta" if reagendando else "Marcar consulta" }}
                 </h1>
 
                 <p class="mb-0 text-muted">
-                    Escolha a melhor data e horário para atendimento com Dr(a).
+                    {% if reagendando %}
+                        Escolha a nova data e o novo horário para o atendimento com Dr(a).
+                    {% else %}
+                        Escolha a melhor data e horário para atendimento com Dr(a).
+                    {% endif %}
                     <strong>{{ medico.nome }} {{ medico.sobrenome }}</strong>.
                 </p>
             </div>
@@ -122,10 +126,18 @@
 
                 <div class="consulta-card-header">
                     <div>
-                        <span class="consulta-card-label">Dados do agendamento</span>
-                        <h3 class="fw-bold mb-1">Escolha data e horário</h3>
+                        <span class="consulta-card-label">
+                            {{ "Alterar agendamento" if reagendando else "Dados do agendamento" }}
+                        </span>
+                        <h3 class="fw-bold mb-1">
+                            {{ "Escolha a nova data e horário" if reagendando else "Escolha data e horário" }}
+                        </h3>
                         <p class="text-muted mb-0">
-                            Os horários ocupados serão bloqueados automaticamente após selecionar a data.
+                            {% if reagendando %}
+                                O horário atual permanecerá disponível durante a alteração.
+                            {% else %}
+                                Os horários ocupados serão bloqueados automaticamente após selecionar a data.
+                            {% endif %}
                         </p>
                     </div>
 
@@ -135,6 +147,11 @@
                 </div>
 
                 <form method="POST" id="form_consulta" class="mt-4">
+                    {% if consulta_em_edicao %}
+                        <input type="hidden"
+                               name="consulta_id"
+                               value="{{ consulta_em_edicao.id }}">
+                    {% endif %}
 
                     <div class="consulta-form-grid">
                         <div class="consulta-field">
@@ -143,7 +160,7 @@
                                 <i class="bi bi-person"></i>
                                 <input type="text"
                                        class="form-control"
-                                       value="{{ current_user.nome }} {{ current_user.sobrenome }}"
+                                       value="{{ paciente_consulta.nome }} {{ paciente_consulta.sobrenome }}"
                                        readonly>
                             </div>
                         </div>
@@ -156,6 +173,7 @@
                                        class="form-control"
                                        id="data_consulta"
                                        name="data_consulta"
+                                       value="{{ consulta_em_edicao.data.isoformat() if consulta_em_edicao else '' }}"
                                        required>
                             </div>
                         </div>
@@ -207,7 +225,7 @@
                             class="btn consulta-btn-confirmar w-100 mt-4"
                             id="btn_confirmar_consulta">
                         <i class="bi bi-check2-circle"></i>
-                        Confirmar agendamento
+                        {{ "Confirmar reagendamento" if reagendando else "Confirmar agendamento" }}
                     </button>
 
                 </form>
@@ -597,6 +615,10 @@ document.addEventListener("DOMContentLoaded", function () {
     const horariosStatus = document.getElementById("horarios_status");
     const formConsulta = document.getElementById("form_consulta");
     const medicoId = "{{ medico.id }}";
+    const consultaId = "{{ consulta_em_edicao.id if consulta_em_edicao else '' }}";
+    const dataAtual = "{{ consulta_em_edicao.data.isoformat() if consulta_em_edicao else '' }}";
+    const horarioAtual = "{{ consulta_em_edicao.horario if consulta_em_edicao else '' }}";
+    const reagendando = {{ "true" if reagendando else "false" }};
 
     const hoje = new Date();
     const ano = hoje.getFullYear();
@@ -659,8 +681,7 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 
-    inputData.addEventListener("change", async function () {
-        const data = inputData.value;
+    async function carregarHorarios(data, selecionarHorarioAtual = false) {
         limparHorarios();
 
         if (!data) {
@@ -671,9 +692,19 @@ document.addEventListener("DOMContentLoaded", function () {
         horariosStatus.innerHTML = `<i class="bi bi-hourglass-split"></i> Buscando horários ocupados...`;
 
         try {
-            const response = await fetch(`/horarios_disponiveis/${medicoId}/${data}`, {
+            let url = `/horarios_disponiveis/${medicoId}/${data}`;
+
+            if (consultaId) {
+                url += `?consulta_id=${encodeURIComponent(consultaId)}`;
+            }
+
+            const response = await fetch(url, {
                 cache: "no-store"
             });
+
+            if (!response.ok) {
+                throw new Error("Não foi possível consultar os horários.");
+            }
 
             const ocupados = await response.json();
             let totalOcupados = 0;
@@ -687,6 +718,21 @@ document.addEventListener("DOMContentLoaded", function () {
                     totalOcupados += 1;
                 }
             });
+
+            if (
+                selecionarHorarioAtual
+                && data === dataAtual
+                && horarioAtual
+            ) {
+                const botaoAtual = document.querySelector(
+                    `.horario-btn[data-horario="${horarioAtual}"]`
+                );
+
+                if (botaoAtual && !botaoAtual.disabled) {
+                    botaoAtual.classList.add("active");
+                    inputHorario.value = horarioAtual;
+                }
+            }
 
             const totalHorarios = document.querySelectorAll(".horario-btn").length;
             const totalLivres = totalHorarios - totalOcupados;
@@ -702,12 +748,21 @@ document.addEventListener("DOMContentLoaded", function () {
             console.error("Erro ao buscar horários:", err);
             horariosStatus.innerHTML = `<i class="bi bi-exclamation-triangle text-danger"></i> Não foi possível carregar os horários.`;
         }
+    }
+
+    inputData.addEventListener("change", function () {
+        carregarHorarios(inputData.value, false);
     });
+
+    if (reagendando && dataAtual) {
+        inputData.value = dataAtual;
+        carregarHorarios(dataAtual, true);
+    }
 
     formConsulta.addEventListener("submit", function (event) {
         if (!inputData.value || !inputHorario.value) {
             event.preventDefault();
-            alert("Escolha uma data e um horário antes de confirmar o agendamento.");
+            alert(reagendando ? "Escolha a nova data e o novo horário antes de confirmar o reagendamento." : "Escolha uma data e um horário antes de confirmar o agendamento.");
         }
     });
 });

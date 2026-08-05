@@ -10,7 +10,7 @@
             </h2>
 
             <p class="text-muted mb-0">
-                Acompanhe suas consultas agendadas e concluídas.
+                Acompanhe, reagende ou cancele suas consultas.
             </p>
         </div>
     </div>
@@ -67,22 +67,42 @@
                     </div>
 
                     {% if c.status == "agendada" %}
-                        <button class="btn btn-outline-danger w-100 fw-bold btn-cancelar mt-auto"
-                                data-bs-toggle="modal"
-                                data-bs-target="#confirmModal{{ c.id }}">
-                            Cancelar
-                        </button>
+                        <div class="agendamento-acoes mt-auto">
+                            <a href="{{ url_for('consultas', medico_id=c.medico_id, consulta_id=c.id) }}"
+                               class="btn btn-primary w-100 fw-bold btn-reagendar">
+                                <i class="bi bi-calendar2-week"></i>
+                                Reagendar
+                            </a>
+
+                            <button type="button"
+                                    class="btn btn-outline-danger w-100 fw-bold btn-cancelar"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#confirmModal{{ c.id }}">
+                                <i class="bi bi-x-circle"></i>
+                                Cancelar
+                            </button>
+                        </div>
                     {% elif c.status == "concluida" %}
                         <button class="btn btn-outline-success w-100 fw-bold mt-auto" disabled>
                             <i class="bi bi-check-circle"></i>
                             Consulta concluída
+                        </button>
+                    {% else %}
+                        <button class="btn btn-outline-secondary w-100 fw-bold mt-auto" disabled>
+                            <i class="bi bi-info-circle"></i>
+                            {{ status.texto }}
                         </button>
                     {% endif %}
                 </div>
             </div>
 
             {% if c.status == "agendada" %}
-            <div class="modal fade" id="confirmModal{{ c.id }}" tabindex="-1" aria-labelledby="modalLabel{{ c.id }}" aria-hidden="true">
+            <div class="modal fade"
+                 id="confirmModal{{ c.id }}"
+                 tabindex="-1"
+                 aria-labelledby="modalLabel{{ c.id }}"
+                 aria-hidden="true">
+
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content modal-confirmacao-cancelamento">
 
@@ -113,8 +133,10 @@
                                 Não
                             </button>
 
-                            <form action="{{ url_for('cancelar_consulta', consulta_id=c.id) }}" method="POST">
-                                <button type="submit" class="btn btn-danger btn-modal-cancelar">
+                            <form action="{{ url_for('cancelar_consulta', consulta_id=c.id) }}"
+                                  method="POST">
+                                <button type="submit"
+                                        class="btn btn-danger btn-modal-cancelar">
                                     Sim, cancelar
                                 </button>
                             </form>
@@ -126,6 +148,7 @@
             {% endif %}
         {% endfor %}
     </div>
+
     {% else %}
         <div class="card border-0 shadow-sm rounded-4">
             <div class="card-body text-center p-5">
@@ -178,13 +201,37 @@
     padding: 12px 14px;
 }
 
+.agendamento-acoes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.btn-reagendar,
+.btn-cancelar {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+}
+
+.btn-reagendar {
+    background: #17344f;
+    border-color: #17344f;
+}
+
+.btn-reagendar:hover {
+    background: #10263b;
+    border-color: #10263b;
+}
+
 .btn-cancelar:hover {
     background-color: #a71d2a;
     color: #fff;
     border-color: #a71d2a;
 }
 
-/* MODAL DE CANCELAMENTO NO MESMO ESTILO DA IMAGEM */
 .modal-confirmacao-cancelamento {
     border: none;
     border-radius: 18px;
@@ -235,6 +282,10 @@
 }
 
 @media (max-width: 575.98px) {
+    .agendamento-acoes {
+        grid-template-columns: 1fr;
+    }
+
     .modal-cancelamento-footer {
         flex-direction: column;
     }

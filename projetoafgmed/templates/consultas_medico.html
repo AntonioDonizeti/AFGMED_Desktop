@@ -31,29 +31,72 @@
                 {% if medico %}
                     <div class="consulta-resumo-medico">
                         <div>
+                            <small>Hoje</small>
+                            <strong>{{ resumo.hoje }}</strong>
+                        </div>
+
+                        <div>
                             <small>Total</small>
-                            <strong>{{ consultas|length }}</strong>
+                            <strong>{{ resumo.total }}</strong>
                         </div>
 
                         <div>
                             <small>Agendadas</small>
-                            <strong>{{ consultas|selectattr('status', 'equalto', 'agendada')|list|length }}</strong>
+                            <strong>{{ resumo.agendadas }}</strong>
                         </div>
 
                         <div>
                             <small>Concluídas</small>
-                            <strong>{{ consultas|selectattr('status', 'equalto', 'concluida')|list|length }}</strong>
+                            <strong>{{ resumo.concluidas }}</strong>
                         </div>
 
                         <div>
                             <small>Canceladas</small>
-                            <strong>{{ consultas|selectattr('status', 'equalto', 'cancelada')|list|length }}</strong>
+                            <strong>{{ resumo.canceladas }}</strong>
                         </div>
                     </div>
                 {% endif %}
             </div>
         </div>
     </div>
+
+    {% if medico %}
+    <form method="GET" class="card border-0 shadow-sm rounded-4 mb-4 consulta-filtro-card">
+        <div class="card-body p-3 p-md-4">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-8">
+                    <label for="filtroConsultaMedico" class="form-label fw-semibold">
+                        Filtrar consultas
+                    </label>
+                    <select class="form-select" id="filtroConsultaMedico" name="filtro">
+                        <option value="todas" {% if filtro_atual == 'todas' %}selected{% endif %}>
+                            Todas — abertas primeiro
+                        </option>
+                        <option value="hoje" {% if filtro_atual == 'hoje' %}selected{% endif %}>
+                            Agendadas hoje
+                        </option>
+                        <option value="agendada" {% if filtro_atual == 'agendada' %}selected{% endif %}>
+                            Todas as agendadas
+                        </option>
+                        <option value="concluida" {% if filtro_atual == 'concluida' %}selected{% endif %}>
+                            Concluídas
+                        </option>
+                        <option value="cancelada" {% if filtro_atual == 'cancelada' %}selected{% endif %}>
+                            Canceladas
+                        </option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4 d-grid">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-funnel"></i>
+                        Aplicar filtro
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+    {% endif %}
 
     {% if consultas %}
         <div class="row g-4">
@@ -201,7 +244,7 @@
 
 .consulta-resumo-medico {
     display: grid;
-    grid-template-columns: repeat(4, auto);
+    grid-template-columns: repeat(5, minmax(92px, 1fr));
     gap: 12px;
 }
 
@@ -253,6 +296,14 @@
     border-radius: 18px;
     background: #f8fbfd;
     border: 1px solid #e5eaf0;
+}
+
+.consulta-filtro-card {
+    border: 1px solid #e1e7ec !important;
+}
+
+.consulta-filtro-card .form-select {
+    min-height: 46px;
 }
 
 /* MODAL DE CONFIRMAÇÃO IGUAL AO ESTILO DA IMAGEM */
@@ -327,6 +378,22 @@
 
     .modal-confirmacao-footer form button {
         width: 100%;
+    }
+}
+@media (max-width: 991.98px) {
+    .consulta-resumo-medico {
+        grid-template-columns: repeat(3, 1fr);
+        width: 100%;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .consulta-resumo-medico {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .consulta-resumo-medico > div {
+        min-width: 0;
     }
 }
 </style>

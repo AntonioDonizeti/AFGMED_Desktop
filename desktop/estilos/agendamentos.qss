@@ -59,3 +59,122 @@ QLabel#agendamentosVazio {
     font-size: 16px;
     padding: 50px;
 }
+
+QWidget#containerAgendamentos {
+    background-color: transparent;
+}
+
+QFrame#agendamentoCard {
+    background-color: #ffffff;
+    border: 1px solid #dce5ec;
+    border-radius: 14px;
+}
+
+QFrame#agendamentoCard:hover {
+    border: 1px solid #b8c9d6;
+    background-color: #fcfdfe;
+}
+
+QLabel#numeroAgendamento {
+    color: #778899;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+QLabel#nomeMedicoAgendamento {
+    color: #10263b;
+    font-size: 18px;
+    font-weight: 750;
+}
+
+QLabel#especialidadeAgendamento {
+    color: #587087;
+    font-size: 13px;
+}
+
+QLabel#statusAgendamento {
+    padding: 5px 11px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QLabel#statusAgendamento[tipoStatus="agendada"] {
+    color: #1b4f80;
+    background-color: #edf5fc;
+    border: 1px solid #b9d4ec;
+}
+
+QLabel#statusAgendamento[tipoStatus="concluida"] {
+    color: #17603f;
+    background-color: #edf8f2;
+    border: 1px solid #b5dcc9;
+}
+
+QLabel#statusAgendamento[tipoStatus="cancelada"] {
+    color: #8b3038;
+    background-color: #fff1f2;
+    border: 1px solid #efc1c5;
+}
+
+QFrame#painelDataAgendamento {
+    background-color: #f5f8fa;
+    border: 1px solid #e1e8ed;
+    border-radius: 10px;
+}
+
+QLabel#rotuloInformacaoAgendamento {
+    color: #758797;
+    font-size: 11px;
+    font-weight: 650;
+}
+
+QLabel#valorInformacaoAgendamento {
+    color: #17344f;
+    font-size: 14px;
+    font-weight: 750;
+}
+
+QPushButton#botaoReagendar {
+    color: #ffffff;
+    background-color: #173f63;
+    border: 1px solid #173f63;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: 700;
+}
+
+QPushButton#botaoReagendar:hover {
+    background-color: #0e304e;
+    border-color: #0e304e;
+}
+
+QPushButton#botaoPerigo {
+    color: #9a3038;
+    background-color: #fff5f5;
+    border: 1px solid #e6b8bc;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: 700;
+}
+
+QPushButton#botaoPerigo:hover {
+    color: #ffffff;
+    background-color: #b93f49;
+    border-color: #b93f49;
+}
+
+QLabel#observacaoAgendamento {
+    color: #6b7782;
+    background-color: #f5f6f7;
+    border: 1px solid #e1e4e7;
+    border-radius: 8px;
+    padding: 9px;
+    font-size: 12px;
+}
+
+QLabel#agendamentosVazio {
+    color: #627487;
+    font-size: 15px;
+    padding: 40px;
+}

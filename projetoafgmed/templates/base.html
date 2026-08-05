@@ -28,6 +28,8 @@
 
 <body>
 
+{% set medico_exclusivo = current_user.is_authenticated and current_user.is_medico and not current_user.is_admin %}
+
 <!-- ======================================================
      NAVBAR
 ====================================================== -->
@@ -36,7 +38,7 @@
 
         <!-- Logo -->
         <a class="navbar-brand d-flex align-items-center"
-           href="{{ url_for('homepage') }}">
+           href="{{ url_for('medicos') if medico_exclusivo else url_for('homepage') }}">
 
             <img src="{{ url_for('static', filename='imagens/logo.jpg') }}"
                  alt="Logo AFGMED"
@@ -89,23 +91,18 @@
             <!-- Menu principal -->
             <ul class="navbar-nav ms-auto align-items-lg-center">
 
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('homepage') }}">
-                        Home
-                    </a>
-                </li>
-
-                {% if current_user.is_authenticated
-                      and current_user.is_medico
-                      and not current_user.is_admin %}
-
+                {% if medico_exclusivo %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('medicos') }}">
                             Minhas Consultas
                         </a>
                     </li>
-
                 {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('homepage') }}">
+                            Home
+                        </a>
+                    </li>
 
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('medicos') }}">
@@ -113,30 +110,53 @@
                         </a>
                     </li>
 
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('produtos') }}">
+                            Produtos
+                        </a>
+                    </li>
                 {% endif %}
 
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('produtos') }}">
-                        Produtos
-                    </a>
-                </li>
-
                 {% if current_user.is_authenticated and current_user.is_admin %}
-
-                    <li class="nav-item ms-lg-2 mt-2 mt-lg-0">
-                        <a class="btn btn-primary"
-                           href="{{ url_for('cadastro_medico') }}">
-                            Cadastrar Médico
+                    <li class="nav-item dropdown ms-lg-2">
+                        <a class="nav-link dropdown-toggle"
+                           href="#"
+                           id="adminDropdown"
+                           role="button"
+                           data-bs-toggle="dropdown"
+                           aria-expanded="false">
+                            Administração
                         </a>
-                    </li>
 
-                    <li class="nav-item ms-lg-2 mt-2 mt-lg-0">
-                        <a class="btn btn-primary"
-                           href="{{ url_for('cadastro_produto') }}">
-                            Cadastrar Produto
-                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end"
+                            aria-labelledby="adminDropdown">
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('cadastro_medico') }}">
+                                    <i class="bi bi-person-plus me-2"></i>
+                                    Cadastrar Médico
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('cadastro_produto') }}">
+                                    <i class="bi bi-box-seam me-2"></i>
+                                    Cadastrar Produto
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('admin_pedidos_gerais') }}">
+                                    <i class="bi bi-receipt me-2"></i>
+                                    Pedidos gerais
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('admin_agenda_geral') }}">
+                                    <i class="bi bi-calendar3 me-2"></i>
+                                    Agenda geral
+                                </a>
+                            </li>
+                        </ul>
                     </li>
-
                 {% endif %}
 
             </ul>
@@ -208,6 +228,24 @@
                                        href="{{ url_for('meus_pedidos') }}">
                                         <i class="bi bi-bag-check me-2"></i>
                                         Minhas Compras
+                                    </a>
+                                </li>
+                            {% endif %}
+
+                            {% if current_user.is_admin %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item d-flex align-items-center"
+                                       href="{{ url_for('admin_pedidos_gerais') }}">
+                                        <i class="bi bi-receipt me-2"></i>
+                                        Pedidos gerais
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item d-flex align-items-center"
+                                       href="{{ url_for('admin_agenda_geral') }}">
+                                        <i class="bi bi-calendar3 me-2"></i>
+                                        Agenda geral
                                     </a>
                                 </li>
                             {% endif %}
@@ -306,24 +344,22 @@
                 <h6 class="footer-title">Navegação</h6>
 
                 <ul class="footer-links">
-                    <li><a href="{{ url_for('homepage') }}">Home</a></li>
-
-                    {% if current_user.is_authenticated
-                          and current_user.is_medico
-                          and not current_user.is_admin %}
+                    {% if medico_exclusivo %}
                         <li><a href="{{ url_for('medicos') }}">Minhas Consultas</a></li>
+                        <li><a href="{{ url_for('perfil') }}">Meu Perfil</a></li>
                     {% else %}
+                        <li><a href="{{ url_for('homepage') }}">Home</a></li>
                         <li><a href="{{ url_for('medicos') }}">Consulta</a></li>
-                    {% endif %}
+                        <li><a href="{{ url_for('produtos') }}">Produtos</a></li>
 
-                    <li><a href="{{ url_for('produtos') }}">Produtos</a></li>
-
-                    {% if current_user.is_authenticated %}
-                        {% if current_user.is_medico and not current_user.is_admin %}
-                            <li><a href="{{ url_for('medicos') }}">Minhas Consultas</a></li>
-                        {% else %}
+                        {% if current_user.is_authenticated %}
                             <li><a href="{{ url_for('meus_agendamentos') }}">Meus Agendamentos</a></li>
                             <li><a href="{{ url_for('meus_pedidos') }}">Minhas Compras</a></li>
+                        {% endif %}
+
+                        {% if current_user.is_authenticated and current_user.is_admin %}
+                            <li><a href="{{ url_for('admin_pedidos_gerais') }}">Pedidos gerais</a></li>
+                            <li><a href="{{ url_for('admin_agenda_geral') }}">Agenda geral</a></li>
                         {% endif %}
                     {% endif %}
                 </ul>

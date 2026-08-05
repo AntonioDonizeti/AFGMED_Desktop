@@ -1,10 +1,12 @@
 import re
 import shutil
+import unicodedata
 from datetime import date
 from pathlib import Path
 from uuid import uuid4
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -50,6 +52,50 @@ def formatar_real(valor):
         .replace("X", ".")
     )
     return f"R$ {texto}"
+
+
+def normalizar_busca(valor):
+    """Normaliza texto para pesquisas sem diferença entre maiúsculas e acentos."""
+    texto = unicodedata.normalize(
+        "NFKD",
+        str(valor or ""),
+    )
+    return "".join(
+        caractere
+        for caractere in texto
+        if not unicodedata.combining(caractere)
+    ).casefold().strip()
+
+
+def carregar_imagem_label(label, pasta, nome_arquivo, largura=170, altura=150):
+    """Carrega uma imagem no QLabel ou exibe uma mensagem alternativa."""
+    label.clear()
+    nome_seguro = Path(nome_arquivo or "").name
+
+    if not nome_seguro:
+        label.setText("Sem imagem")
+        return
+
+    caminho = pasta / nome_seguro
+
+    if not caminho.exists():
+        label.setText("Imagem não encontrada")
+        return
+
+    imagem = QPixmap(str(caminho))
+
+    if imagem.isNull():
+        label.setText("Imagem inválida")
+        return
+
+    label.setPixmap(
+        imagem.scaled(
+            largura,
+            altura,
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
+        )
+    )
 
 
 def nome_arquivo_seguro(caminho):
@@ -105,7 +151,6 @@ class DialogProduto(QDialog):
         self.estoque.setRange(0, 999999999)
         self.ativo = QCheckBox("Produto ativo")
         self.ativo.setChecked(True)
-        self.destaque = QCheckBox("Exibir nos destaques da home")
 
         foto_linha = QHBoxLayout()
         self.foto_label = QLabel("Nenhuma nova imagem selecionada")
@@ -120,7 +165,6 @@ class DialogProduto(QDialog):
         formulario.addRow("Preço*", self.preco)
         formulario.addRow("Estoque", self.estoque)
         formulario.addRow("Situação", self.ativo)
-        formulario.addRow("Destaque", self.destaque)
         formulario.addRow("Foto", foto_linha)
 
         layout.addLayout(formulario)
@@ -162,7 +206,6 @@ class DialogProduto(QDialog):
                     "preco": float(produto.preco or 0),
                     "estoque": int(produto.estoque or 0),
                     "ativo": bool(produto.ativo),
-                    "destaque": bool(produto.destaque_home),
                     "foto": produto.foto or "",
                 }
 
@@ -171,7 +214,6 @@ class DialogProduto(QDialog):
             self.preco.setValue(dados["preco"])
             self.estoque.setValue(dados["estoque"])
             self.ativo.setChecked(dados["ativo"])
-            self.destaque.setChecked(dados["destaque"])
             self.foto_label.setText(
                 f"Imagem atual: {dados['foto']}" if dados["foto"] else "Sem imagem"
             )
@@ -204,7 +246,6 @@ class DialogProduto(QDialog):
                 produto.preco = float(self.preco.value())
                 produto.estoque = int(self.estoque.value())
                 produto.ativo = self.ativo.isChecked()
-                produto.destaque_home = self.destaque.isChecked()
 
                 if nova_foto:
                     produto.foto = nova_foto
@@ -442,86 +483,286 @@ class TelaAdminProdutos(TelaAdminBase):
         super().__init__(
             "paginaAdminProdutos",
             "Gerenciar produtos",
-            "Cadastre e edite produtos seguindo os mesmos campos disponíveis no projeto web.",
+            "Pesquise, filtre e selecione um produto para visualizar ou alterar seus dados.",
         )
 
         self.busca = QLineEdit()
-        self.busca.setPlaceholderText("Buscar produto...")
+        self.busca.setPlaceholderText("Buscar por nome ou descrição...")
         self.busca.setClearButtonEnabled(True)
+        self.busca.setMinimumWidth(250)
         self.busca.textChanged.connect(self.recarregar)
+
+        self.filtro_status = QComboBox()
+        self.filtro_status.addItem("Todos", "todos")
+        self.filtro_status.addItem("Ativos", "ativos")
+        self.filtro_status.addItem("Inativos", "inativos")
+        self.filtro_status.currentIndexChanged.connect(self.recarregar)
+
+        self.filtro_estoque = QComboBox()
+        self.filtro_estoque.addItem("Qualquer estoque", "todos")
+        self.filtro_estoque.addItem("Sem estoque", "sem")
+        self.filtro_estoque.addItem("Estoque baixo", "baixo")
+        self.filtro_estoque.addItem("Estoque normal", "normal")
+        self.filtro_estoque.currentIndexChanged.connect(self.recarregar)
 
         novo = QPushButton("Novo produto")
         novo.setObjectName("botaoPrimario")
         novo.clicked.connect(self.novo_produto)
-        editar = QPushButton("Editar")
-        editar.clicked.connect(self.editar_produto)
-        alternar = QPushButton("Ativar / desativar")
-        alternar.clicked.connect(self.alternar_ativo)
-        remover = QPushButton("Excluir")
-        remover.setObjectName("botaoPerigo")
-        remover.clicked.connect(self.remover_produto)
+
         atualizar = QPushButton("Atualizar")
         atualizar.clicked.connect(self.recarregar)
 
         self.area_acoes_topo.addWidget(self.busca)
+        self.area_acoes_topo.addWidget(self.filtro_status)
+        self.area_acoes_topo.addWidget(self.filtro_estoque)
         self.area_acoes_topo.addWidget(novo)
-        self.area_acoes_topo.addWidget(editar)
-        self.area_acoes_topo.addWidget(alternar)
-        self.area_acoes_topo.addWidget(remover)
         self.area_acoes_topo.addWidget(atualizar)
 
+        area_conteudo = QHBoxLayout()
+        area_conteudo.setSpacing(16)
+
         self.tabela = self.criar_tabela(
-            ["ID", "Produto", "Preço", "Estoque", "Ativo", "Destaque", "Imagem"]
+            ["ID", "Produto", "Preço", "Estoque", "Situação", "Imagem"]
         )
+        self.tabela.setMinimumWidth(690)
+
         header = self.tabela.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
-        for coluna in range(2, 7):
-            header.setSectionResizeMode(coluna, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.Stretch)
+
+        self.tabela.itemSelectionChanged.connect(self.atualizar_detalhes)
         self.tabela.doubleClicked.connect(self.editar_produto)
 
-        self.layout_principal.addWidget(self.tabela, 1)
+        self.painel_detalhes = self._criar_painel_detalhes()
+
+        area_conteudo.addWidget(self.tabela, 3)
+        area_conteudo.addWidget(self.painel_detalhes, 1)
+
+        self.layout_principal.addLayout(area_conteudo, 1)
         self.recarregar()
 
+    def _criar_painel_detalhes(self):
+        painel = QFrame()
+        painel.setObjectName("painelDetalhesAdmin")
+        painel.setMinimumWidth(280)
+        painel.setMaximumWidth(390)
+
+        layout = QVBoxLayout(painel)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(8)
+
+        titulo = QLabel("Detalhes do produto")
+        titulo.setObjectName("tituloPainelAdmin")
+
+        self.foto_detalhe = QLabel("Selecione um produto")
+        self.foto_detalhe.setObjectName("imagemPainelAdmin")
+        self.foto_detalhe.setFixedHeight(125)
+        self.foto_detalhe.setAlignment(Qt.AlignCenter)
+
+        self.nome_detalhe = QLabel("Nenhum produto selecionado")
+        self.nome_detalhe.setObjectName("nomePainelAdmin")
+        self.nome_detalhe.setWordWrap(True)
+
+        self.descricao_detalhe = QLabel(
+            "Selecione uma linha da tabela para visualizar as informações."
+        )
+        self.descricao_detalhe.setObjectName("textoPainelAdmin")
+        self.descricao_detalhe.setWordWrap(True)
+        self.descricao_detalhe.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.descricao_detalhe.setMinimumHeight(34)
+        self.descricao_detalhe.setMaximumHeight(44)
+
+        self.preco_detalhe = QLabel("Preço: —")
+        self.estoque_detalhe = QLabel("Estoque: —")
+        self.status_detalhe = QLabel("Situação: —")
+        self.arquivo_detalhe = QLabel("Imagem: —")
+
+        for label in (
+            self.preco_detalhe,
+            self.estoque_detalhe,
+            self.status_detalhe,
+            self.arquivo_detalhe,
+        ):
+            label.setObjectName("linhaPainelAdmin")
+            label.setWordWrap(True)
+
+        self.botao_editar = QPushButton("Editar produto")
+        self.botao_editar.setObjectName("botaoPrimario")
+        self.botao_editar.clicked.connect(self.editar_produto)
+
+        self.botao_ativo = QPushButton("Ativar / desativar")
+        self.botao_ativo.clicked.connect(self.alternar_ativo)
+
+        self.botao_excluir = QPushButton("Excluir produto")
+        self.botao_excluir.setObjectName("botaoPerigo")
+        self.botao_excluir.clicked.connect(self.remover_produto)
+
+        layout.addWidget(titulo)
+        layout.addWidget(self.foto_detalhe)
+        layout.addWidget(self.nome_detalhe)
+        layout.addWidget(self.descricao_detalhe)
+        layout.addWidget(self.preco_detalhe)
+        layout.addWidget(self.estoque_detalhe)
+        layout.addWidget(self.status_detalhe)
+        layout.addWidget(self.arquivo_detalhe)
+        layout.addStretch()
+        layout.addWidget(self.botao_editar)
+        layout.addWidget(self.botao_ativo)
+        layout.addWidget(self.botao_excluir)
+
+        self._habilitar_acoes(False)
+        return painel
+
+    def _habilitar_acoes(self, habilitado):
+        self.botao_editar.setEnabled(habilitado)
+        self.botao_ativo.setEnabled(habilitado)
+        self.botao_excluir.setEnabled(habilitado)
+
     def recarregar(self):
-        texto = self.busca.text().strip().lower()
+        texto = normalizar_busca(self.busca.text())
+        filtro_status = self.filtro_status.currentData()
+        filtro_estoque = self.filtro_estoque.currentData()
+        id_anterior = self.id_selecionado(self.tabela)
+
         try:
             with app.app_context():
                 produtos = Produto.query.order_by(Produto.nome.asc()).all()
-                dados = [
-                    {
-                        "id": p.id,
-                        "nome": p.nome or "",
-                        "preco": float(p.preco or 0),
-                        "estoque": int(p.estoque or 0),
-                        "ativo": bool(p.ativo),
-                        "destaque": bool(p.destaque_home),
-                        "foto": p.foto or "",
-                    }
-                    for p in produtos
-                    if not texto or texto in (p.nome or "").lower()
-                ]
+                dados = []
+
+                for produto in produtos:
+                    chave_busca = normalizar_busca(
+                        f"{produto.id} {produto.nome or ''} {produto.descricao or ''}"
+                    )
+
+                    if texto and texto not in chave_busca:
+                        continue
+
+                    if filtro_status == "ativos" and not produto.ativo:
+                        continue
+
+                    if filtro_status == "inativos" and produto.ativo:
+                        continue
+
+                    estoque = int(produto.estoque or 0)
+
+                    if filtro_estoque == "sem" and estoque != 0:
+                        continue
+
+                    if filtro_estoque == "baixo" and not (1 <= estoque <= 5):
+                        continue
+
+                    if filtro_estoque == "normal" and estoque <= 5:
+                        continue
+
+                    dados.append(
+                        {
+                            "id": produto.id,
+                            "nome": produto.nome or "",
+                            "descricao": produto.descricao or "",
+                            "preco": float(produto.preco or 0),
+                            "estoque": estoque,
+                            "ativo": bool(produto.ativo),
+                            "foto": produto.foto or "",
+                        }
+                    )
 
             self.tabela.setRowCount(0)
+
+            linha_selecionar = None
+
             for linha, produto in enumerate(dados):
                 self.tabela.insertRow(linha)
+
                 valores = [
                     produto["id"],
                     produto["nome"],
                     formatar_real(produto["preco"]),
                     produto["estoque"],
-                    "Sim" if produto["ativo"] else "Não",
-                    "Sim" if produto["destaque"] else "Não",
-                    produto["foto"],
+                    "Ativo" if produto["ativo"] else "Inativo",
+                    produto["foto"] or "—",
                 ]
+
                 for coluna, valor in enumerate(valores):
                     item = QTableWidgetItem(str(valor))
-                    if coluna != 1:
+                    item.setData(Qt.UserRole, produto)
+
+                    if coluna not in (1, 5):
                         item.setTextAlignment(Qt.AlignCenter)
+
                     self.tabela.setItem(linha, coluna, item)
+
+                if produto["id"] == id_anterior:
+                    linha_selecionar = linha
+
+            if self.tabela.rowCount():
+                self.tabela.selectRow(
+                    linha_selecionar if linha_selecionar is not None else 0
+                )
+            else:
+                self.limpar_detalhes()
 
         except Exception as erro:
             QMessageBox.critical(self, "Erro", str(erro))
+
+    def dados_selecionados(self):
+        linha = self.tabela.currentRow()
+
+        if linha < 0:
+            return None
+
+        item = self.tabela.item(linha, 0)
+        return item.data(Qt.UserRole) if item else None
+
+    def atualizar_detalhes(self):
+        dados = self.dados_selecionados()
+
+        if not dados:
+            self.limpar_detalhes()
+            return
+
+        self.nome_detalhe.setText(dados["nome"] or "Produto")
+        self.descricao_detalhe.setText(
+            dados["descricao"] or "Descrição não informada."
+        )
+        self.preco_detalhe.setText(f"Preço: {formatar_real(dados['preco'])}")
+        self.estoque_detalhe.setText(
+            f"Estoque disponível: {dados['estoque']} unidade(s)"
+        )
+        self.status_detalhe.setText(
+            "Situação: Ativo" if dados["ativo"] else "Situação: Inativo"
+        )
+        self.arquivo_detalhe.setText(
+            f"Imagem: {dados['foto'] or 'não informada'}"
+        )
+        self.botao_ativo.setText(
+            "Desativar produto" if dados["ativo"] else "Ativar produto"
+        )
+
+        carregar_imagem_label(
+            self.foto_detalhe,
+            PASTA_PRODUTOS,
+            dados["foto"],
+            largura=145,
+            altura=105,
+        )
+        self._habilitar_acoes(True)
+
+    def limpar_detalhes(self):
+        self.foto_detalhe.clear()
+        self.foto_detalhe.setText("Selecione um produto")
+        self.nome_detalhe.setText("Nenhum produto selecionado")
+        self.descricao_detalhe.setText(
+            "Selecione uma linha da tabela para visualizar as informações."
+        )
+        self.preco_detalhe.setText("Preço: —")
+        self.estoque_detalhe.setText("Estoque: —")
+        self.status_detalhe.setText("Situação: —")
+        self.arquivo_detalhe.setText("Imagem: —")
+        self._habilitar_acoes(False)
 
     def novo_produto(self):
         if DialogProduto(parent=self).exec() == QDialog.Accepted:
@@ -529,25 +770,41 @@ class TelaAdminProdutos(TelaAdminBase):
 
     def editar_produto(self):
         produto_id = self.id_selecionado(self.tabela)
+
         if produto_id is None:
-            QMessageBox.information(self, "Selecione", "Selecione um produto para editar.")
+            QMessageBox.information(
+                self,
+                "Selecione",
+                "Selecione um produto para editar.",
+            )
             return
+
         if DialogProduto(produto_id, self).exec() == QDialog.Accepted:
             self.recarregar()
 
     def alternar_ativo(self):
         produto_id = self.id_selecionado(self.tabela)
+
         if produto_id is None:
-            QMessageBox.information(self, "Selecione", "Selecione um produto.")
+            QMessageBox.information(
+                self,
+                "Selecione",
+                "Selecione um produto.",
+            )
             return
+
         try:
             with app.app_context():
                 produto = database.session.get(Produto, produto_id)
+
                 if produto is None:
                     raise ValueError("Produto não encontrado.")
+
                 produto.ativo = not bool(produto.ativo)
                 database.session.commit()
+
             self.recarregar()
+
         except Exception as erro:
             database.session.rollback()
             QMessageBox.critical(self, "Erro", str(erro))
@@ -563,9 +820,8 @@ class TelaAdminProdutos(TelaAdminBase):
             )
             return
 
-        linha = self.tabela.currentRow()
-        item_nome = self.tabela.item(linha, 1)
-        nome_produto = item_nome.text() if item_nome else "produto selecionado"
+        dados = self.dados_selecionados()
+        nome_produto = dados["nome"] if dados else "produto selecionado"
 
         resposta = QMessageBox.question(
             self,
@@ -594,7 +850,12 @@ class TelaAdminProdutos(TelaAdminBase):
             self.recarregar()
 
         except ErroProduto as erro:
-            QMessageBox.warning(self, "Não foi possível excluir", str(erro))
+            QMessageBox.warning(
+                self,
+                "Não foi possível excluir",
+                str(erro),
+            )
+
         except Exception as erro:
             print("ERRO AO EXCLUIR PRODUTO:", erro)
             QMessageBox.critical(
@@ -609,34 +870,53 @@ class TelaAdminMedicos(TelaAdminBase):
         super().__init__(
             "paginaAdminMedicos",
             "Gerenciar médicos",
-            "Cadastre profissionais e sincronize automaticamente o acesso médico usado pelo web e desktop.",
+            "Filtre profissionais e selecione uma linha para visualizar ou alterar o cadastro.",
         )
 
         self.busca = QLineEdit()
-        self.busca.setPlaceholderText("Buscar médico ou especialidade...")
+        self.busca.setPlaceholderText("Buscar médico, e-mail ou telefone...")
         self.busca.setClearButtonEnabled(True)
+        self.busca.setMinimumWidth(250)
         self.busca.textChanged.connect(self.recarregar)
+
+        self.filtro_especialidade = QComboBox()
+        self.filtro_especialidade.addItem("Todas as especialidades", "todas")
+        self.filtro_especialidade.currentIndexChanged.connect(self.recarregar)
+
+        self.filtro_vinculo = QComboBox()
+        self.filtro_vinculo.addItem("Todos os acessos", "todos")
+        self.filtro_vinculo.addItem("Com acesso vinculado", "sim")
+        self.filtro_vinculo.addItem("Sem acesso vinculado", "nao")
+        self.filtro_vinculo.currentIndexChanged.connect(self.recarregar)
 
         novo = QPushButton("Novo médico")
         novo.setObjectName("botaoPrimario")
         novo.clicked.connect(self.novo_medico)
-        editar = QPushButton("Editar")
-        editar.clicked.connect(self.editar_medico)
-        remover = QPushButton("Remover")
-        remover.setObjectName("botaoPerigo")
-        remover.clicked.connect(self.remover_medico)
+
         atualizar = QPushButton("Atualizar")
         atualizar.clicked.connect(self.recarregar)
 
         self.area_acoes_topo.addWidget(self.busca)
+        self.area_acoes_topo.addWidget(self.filtro_especialidade)
+        self.area_acoes_topo.addWidget(self.filtro_vinculo)
         self.area_acoes_topo.addWidget(novo)
-        self.area_acoes_topo.addWidget(editar)
-        self.area_acoes_topo.addWidget(remover)
         self.area_acoes_topo.addWidget(atualizar)
 
+        area_conteudo = QHBoxLayout()
+        area_conteudo.setSpacing(16)
+
         self.tabela = self.criar_tabela(
-            ["ID", "Médico", "Especialidade", "E-mail", "Telefone", "Acesso vinculado"]
+            [
+                "ID",
+                "Médico",
+                "Especialidade",
+                "E-mail",
+                "Telefone",
+                "Acesso",
+            ]
         )
+        self.tabela.setMinimumWidth(720)
+
         header = self.tabela.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
@@ -644,52 +924,254 @@ class TelaAdminMedicos(TelaAdminBase):
         header.setSectionResizeMode(3, QHeaderView.Stretch)
         header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+
+        self.tabela.itemSelectionChanged.connect(self.atualizar_detalhes)
         self.tabela.doubleClicked.connect(self.editar_medico)
 
-        self.layout_principal.addWidget(self.tabela, 1)
+        self.painel_detalhes = self._criar_painel_detalhes()
+
+        area_conteudo.addWidget(self.tabela, 3)
+        area_conteudo.addWidget(self.painel_detalhes, 1)
+
+        self.layout_principal.addLayout(area_conteudo, 1)
         self.recarregar()
 
+    def _criar_painel_detalhes(self):
+        painel = QFrame()
+        painel.setObjectName("painelDetalhesAdmin")
+        painel.setMinimumWidth(280)
+        painel.setMaximumWidth(390)
+
+        layout = QVBoxLayout(painel)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+
+        titulo = QLabel("Detalhes do médico")
+        titulo.setObjectName("tituloPainelAdmin")
+
+        self.foto_detalhe = QLabel("Selecione um médico")
+        self.foto_detalhe.setObjectName("imagemPainelAdmin")
+        self.foto_detalhe.setFixedHeight(180)
+        self.foto_detalhe.setAlignment(Qt.AlignCenter)
+
+        self.nome_detalhe = QLabel("Nenhum médico selecionado")
+        self.nome_detalhe.setObjectName("nomePainelAdmin")
+        self.nome_detalhe.setWordWrap(True)
+
+        self.especialidade_detalhe = QLabel("Especialidade: —")
+        self.email_detalhe = QLabel("E-mail: —")
+        self.telefone_detalhe = QLabel("Telefone: —")
+        self.vinculo_detalhe = QLabel("Acesso médico: —")
+
+        for label in (
+            self.especialidade_detalhe,
+            self.email_detalhe,
+            self.telefone_detalhe,
+            self.vinculo_detalhe,
+        ):
+            label.setObjectName("linhaPainelAdmin")
+            label.setWordWrap(True)
+
+        self.botao_editar = QPushButton("Editar médico")
+        self.botao_editar.setObjectName("botaoPrimario")
+        self.botao_editar.clicked.connect(self.editar_medico)
+
+        self.botao_remover = QPushButton("Remover médico")
+        self.botao_remover.setObjectName("botaoPerigo")
+        self.botao_remover.clicked.connect(self.remover_medico)
+
+        layout.addWidget(titulo)
+        layout.addWidget(self.foto_detalhe)
+        layout.addWidget(self.nome_detalhe)
+        layout.addWidget(self.especialidade_detalhe)
+        layout.addWidget(self.email_detalhe)
+        layout.addWidget(self.telefone_detalhe)
+        layout.addWidget(self.vinculo_detalhe)
+        layout.addStretch()
+        layout.addWidget(self.botao_editar)
+        layout.addWidget(self.botao_remover)
+
+        self._habilitar_acoes(False)
+        return painel
+
+    def _habilitar_acoes(self, habilitado):
+        self.botao_editar.setEnabled(habilitado)
+        self.botao_remover.setEnabled(habilitado)
+
+    def _atualizar_especialidades(self, medicos):
+        selecionada = self.filtro_especialidade.currentData()
+
+        especialidades = sorted(
+            {
+                (medico.especialidade or "").strip()
+                for medico in medicos
+                if (medico.especialidade or "").strip()
+            },
+            key=normalizar_busca,
+        )
+
+        self.filtro_especialidade.blockSignals(True)
+        self.filtro_especialidade.clear()
+        self.filtro_especialidade.addItem("Todas as especialidades", "todas")
+
+        for especialidade in especialidades:
+            self.filtro_especialidade.addItem(especialidade, especialidade)
+
+        indice = self.filtro_especialidade.findData(selecionada)
+
+        if indice >= 0:
+            self.filtro_especialidade.setCurrentIndex(indice)
+
+        self.filtro_especialidade.blockSignals(False)
+
     def recarregar(self):
-        texto = self.busca.text().strip().lower()
+        texto = normalizar_busca(self.busca.text())
+        filtro_especialidade = self.filtro_especialidade.currentData()
+        filtro_vinculo = self.filtro_vinculo.currentData()
+        id_anterior = self.id_selecionado(self.tabela)
+
         try:
             with app.app_context():
-                medicos = Medico.query.order_by(Medico.nome.asc()).all()
+                medicos = Medico.query.order_by(
+                    Medico.nome.asc(),
+                    Medico.sobrenome.asc(),
+                ).all()
+
+                self._atualizar_especialidades(medicos)
+                filtro_especialidade = self.filtro_especialidade.currentData()
                 dados = []
+
                 for medico in medicos:
-                    chave = f"{medico.nome} {medico.sobrenome} {medico.especialidade}".lower()
-                    if texto and texto not in chave:
-                        continue
                     usuario = Usuario.query.filter_by(id_medico=medico.id).first()
+                    vinculado = bool(usuario and usuario.is_medico)
+
+                    chave_busca = normalizar_busca(
+                        (
+                            f"{medico.id} {medico.nome or ''} "
+                            f"{medico.sobrenome or ''} "
+                            f"{medico.especialidade or ''} "
+                            f"{medico.email or ''} "
+                            f"{medico.telefone or ''}"
+                        )
+                    )
+
+                    if texto and texto not in chave_busca:
+                        continue
+
+                    if (
+                        filtro_especialidade != "todas"
+                        and medico.especialidade != filtro_especialidade
+                    ):
+                        continue
+
+                    if filtro_vinculo == "sim" and not vinculado:
+                        continue
+
+                    if filtro_vinculo == "nao" and vinculado:
+                        continue
+
                     dados.append(
                         {
                             "id": medico.id,
-                            "nome": f"{medico.nome} {medico.sobrenome}".strip(),
+                            "nome": (
+                                f"{medico.nome or ''} "
+                                f"{medico.sobrenome or ''}"
+                            ).strip(),
                             "especialidade": medico.especialidade or "",
                             "email": medico.email or "",
                             "telefone": medico.telefone or "—",
-                            "vinculado": "Sim" if usuario and usuario.is_medico else "Não",
+                            "foto": medico.foto or "",
+                            "vinculado": vinculado,
                         }
                     )
 
             self.tabela.setRowCount(0)
+            linha_selecionar = None
+
             for linha, medico in enumerate(dados):
                 self.tabela.insertRow(linha)
+
                 valores = [
                     medico["id"],
                     medico["nome"],
                     medico["especialidade"],
                     medico["email"],
                     medico["telefone"],
-                    medico["vinculado"],
+                    "Sim" if medico["vinculado"] else "Não",
                 ]
+
                 for coluna, valor in enumerate(valores):
                     item = QTableWidgetItem(str(valor))
+                    item.setData(Qt.UserRole, medico)
+
                     if coluna in (0, 5):
                         item.setTextAlignment(Qt.AlignCenter)
+
                     self.tabela.setItem(linha, coluna, item)
+
+                if medico["id"] == id_anterior:
+                    linha_selecionar = linha
+
+            if self.tabela.rowCount():
+                self.tabela.selectRow(
+                    linha_selecionar if linha_selecionar is not None else 0
+                )
+            else:
+                self.limpar_detalhes()
 
         except Exception as erro:
             QMessageBox.critical(self, "Erro", str(erro))
+
+    def dados_selecionados(self):
+        linha = self.tabela.currentRow()
+
+        if linha < 0:
+            return None
+
+        item = self.tabela.item(linha, 0)
+        return item.data(Qt.UserRole) if item else None
+
+    def atualizar_detalhes(self):
+        dados = self.dados_selecionados()
+
+        if not dados:
+            self.limpar_detalhes()
+            return
+
+        self.nome_detalhe.setText(dados["nome"] or "Médico")
+        self.especialidade_detalhe.setText(
+            f"Especialidade: {dados['especialidade'] or 'não informada'}"
+        )
+        self.email_detalhe.setText(
+            f"E-mail: {dados['email'] or 'não informado'}"
+        )
+        self.telefone_detalhe.setText(
+            f"Telefone: {dados['telefone'] or 'não informado'}"
+        )
+        self.vinculo_detalhe.setText(
+            "Acesso médico: vinculado"
+            if dados["vinculado"]
+            else "Acesso médico: não vinculado"
+        )
+
+        carregar_imagem_label(
+            self.foto_detalhe,
+            PASTA_MEDICOS,
+            dados["foto"],
+            largura=180,
+            altura=165,
+        )
+        self._habilitar_acoes(True)
+
+    def limpar_detalhes(self):
+        self.foto_detalhe.clear()
+        self.foto_detalhe.setText("Selecione um médico")
+        self.nome_detalhe.setText("Nenhum médico selecionado")
+        self.especialidade_detalhe.setText("Especialidade: —")
+        self.email_detalhe.setText("E-mail: —")
+        self.telefone_detalhe.setText("Telefone: —")
+        self.vinculo_detalhe.setText("Acesso médico: —")
+        self._habilitar_acoes(False)
 
     def novo_medico(self):
         if DialogMedico(parent=self).exec() == QDialog.Accepted:
@@ -697,31 +1179,50 @@ class TelaAdminMedicos(TelaAdminBase):
 
     def editar_medico(self):
         medico_id = self.id_selecionado(self.tabela)
+
         if medico_id is None:
-            QMessageBox.information(self, "Selecione", "Selecione um médico para editar.")
+            QMessageBox.information(
+                self,
+                "Selecione",
+                "Selecione um médico para editar.",
+            )
             return
+
         if DialogMedico(medico_id, self).exec() == QDialog.Accepted:
             self.recarregar()
 
     def remover_medico(self):
         medico_id = self.id_selecionado(self.tabela)
+
         if medico_id is None:
-            QMessageBox.information(self, "Selecione", "Selecione um médico.")
+            QMessageBox.information(
+                self,
+                "Selecione",
+                "Selecione um médico.",
+            )
             return
+
+        dados = self.dados_selecionados()
+        nome_medico = dados["nome"] if dados else "médico selecionado"
 
         resposta = QMessageBox.question(
             self,
             "Remover médico",
-            "As consultas vinculadas também serão removidas. Deseja continuar?",
+            (
+                f"Deseja remover '{nome_medico}'?\n\n"
+                "As consultas vinculadas também serão removidas."
+            ),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
+
         if resposta != QMessageBox.Yes:
             return
 
         try:
             with app.app_context():
                 medico = database.session.get(Medico, medico_id)
+
                 if medico is None:
                     raise ValueError("Médico não encontrado.")
 
@@ -747,8 +1248,16 @@ class TelaAdminPedidos(TelaAdminBase):
         super().__init__(
             "paginaAdminPedidos",
             "Pedidos gerais",
-            "Visualize as compras de todos os usuários registradas no banco compartilhado.",
+            "Pesquise compras por cliente, produto, cidade, número ou status.",
         )
+
+        self.busca = QLineEdit()
+        self.busca.setPlaceholderText(
+            "Buscar pedido, cliente, produto ou cidade..."
+        )
+        self.busca.setClearButtonEnabled(True)
+        self.busca.setMinimumWidth(300)
+        self.busca.textChanged.connect(self.recarregar)
 
         self.filtro = QComboBox()
         self.filtro.addItem("Todos os status", "todos")
@@ -756,14 +1265,27 @@ class TelaAdminPedidos(TelaAdminBase):
         self.filtro.addItem("Pagos", "pago")
         self.filtro.addItem("Falha / cancelados", "falha")
         self.filtro.currentIndexChanged.connect(self.recarregar)
+
         atualizar = QPushButton("Atualizar")
         atualizar.clicked.connect(self.recarregar)
+
+        self.area_acoes_topo.addWidget(self.busca)
         self.area_acoes_topo.addWidget(self.filtro)
         self.area_acoes_topo.addWidget(atualizar)
 
         self.tabela = self.criar_tabela(
-            ["ID", "Cliente", "Data", "Total", "Pedido", "Pagamento", "Itens", "Cidade/UF"]
+            [
+                "ID",
+                "Cliente",
+                "Data",
+                "Total",
+                "Pedido",
+                "Pagamento",
+                "Itens",
+                "Cidade/UF",
+            ]
         )
+
         header = self.tabela.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
@@ -779,52 +1301,116 @@ class TelaAdminPedidos(TelaAdminBase):
 
     def recarregar(self):
         filtro = self.filtro.currentData()
+        texto = normalizar_busca(self.busca.text())
+
         try:
             with app.app_context():
                 query = Pedido.query
+
                 if filtro == "pago":
                     query = query.filter(
-                        (Pedido.status == "pago") | (Pedido.status_pagamento == "approved")
+                        (Pedido.status == "pago")
+                        | (Pedido.status_pagamento == "approved")
                     )
+
                 elif filtro == "falha":
                     query = query.filter(
                         Pedido.status.in_(["falha", "cancelado"])
                     )
+
                 elif filtro != "todos":
                     query = query.filter(Pedido.status == filtro)
 
                 pedidos = query.order_by(Pedido.data_criacao.desc()).all()
-                dados = [
-                    {
-                        "id": p.id,
-                        "cliente": f"{p.usuario.nome} {p.usuario.sobrenome}".strip(),
-                        "data": p.data_criacao,
-                        "total": float(p.total or 0),
-                        "status": p.status or "",
-                        "pagamento": p.status_pagamento or "",
-                        "itens": sum(int(item.quantidade or 0) for item in p.itens),
-                        "local": f"{p.cidade}/{p.estado}",
-                    }
-                    for p in pedidos
-                ]
+                dados = []
+
+                for pedido in pedidos:
+                    usuario = pedido.usuario
+
+                    cliente = (
+                        (
+                            f"{usuario.nome or ''} "
+                            f"{usuario.sobrenome or ''}"
+                        ).strip()
+                        if usuario
+                        else "Usuário não encontrado"
+                    )
+
+                    nomes_produtos = " ".join(
+                        item.nome_produto or ""
+                        for item in pedido.itens
+                    )
+
+                    data_texto = (
+                        pedido.data_criacao.strftime("%d/%m/%Y %H:%M")
+                        if pedido.data_criacao
+                        else ""
+                    )
+
+                    chave_busca = normalizar_busca(
+                        (
+                            f"{pedido.id} {cliente} {data_texto} "
+                            f"{pedido.cidade or ''} {pedido.estado or ''} "
+                            f"{pedido.status or ''} "
+                            f"{pedido.status_pagamento or ''} "
+                            f"{pedido.mercado_pago_payment_id or ''} "
+                            f"{nomes_produtos}"
+                        )
+                    )
+
+                    if texto and texto not in chave_busca:
+                        continue
+
+                    cidade = pedido.cidade or ""
+                    estado = pedido.estado or ""
+
+                    if cidade and estado:
+                        local = f"{cidade}/{estado}"
+                    else:
+                        local = cidade or estado or "—"
+
+                    dados.append(
+                        {
+                            "id": pedido.id,
+                            "cliente": cliente,
+                            "data": pedido.data_criacao,
+                            "total": float(pedido.total or 0),
+                            "status": pedido.status or "",
+                            "pagamento": pedido.status_pagamento or "",
+                            "itens": sum(
+                                int(item.quantidade or 0)
+                                for item in pedido.itens
+                            ),
+                            "local": local,
+                        }
+                    )
 
             self.tabela.setRowCount(0)
+
             for linha, pedido in enumerate(dados):
                 self.tabela.insertRow(linha)
+
                 valores = [
                     pedido["id"],
                     pedido["cliente"],
-                    pedido["data"].strftime("%d/%m/%Y %H:%M"),
+                    (
+                        pedido["data"].strftime("%d/%m/%Y %H:%M")
+                        if pedido["data"]
+                        else "—"
+                    ),
                     formatar_real(pedido["total"]),
-                    pedido["status"].replace("_", " ").title(),
-                    pedido["pagamento"].replace("_", " ").title(),
+                    pedido["status"].replace("_", " ").title() or "—",
+                    pedido["pagamento"].replace("_", " ").title() or "—",
                     pedido["itens"],
                     pedido["local"],
                 ]
+
                 for coluna, valor in enumerate(valores):
                     item = QTableWidgetItem(str(valor))
+
                     if coluna not in (1, 7):
                         item.setTextAlignment(Qt.AlignCenter)
+
                     self.tabela.setItem(linha, coluna, item)
 
         except Exception as erro:
@@ -836,8 +1422,21 @@ class TelaAdminConsultas(TelaAdminBase):
         super().__init__(
             "paginaAdminConsultas",
             "Agenda geral",
-            "Acompanhe consultas de todos os médicos e altere atendimentos quando necessário.",
+            (
+                "Visualize e pesquise consultas por médico, "
+                "especialidade, paciente, data ou horário."
+            ),
         )
+
+        # A agenda do administrador é somente para consulta.
+        # Concluir e cancelar são ações exclusivas do médico.
+        self.busca = QLineEdit()
+        self.busca.setPlaceholderText(
+            "Buscar médico, paciente, especialidade ou data..."
+        )
+        self.busca.setClearButtonEnabled(True)
+        self.busca.setMinimumWidth(300)
+        self.busca.textChanged.connect(self.recarregar)
 
         self.filtro = QComboBox()
         self.filtro.addItem("Todas", "todas")
@@ -845,101 +1444,222 @@ class TelaAdminConsultas(TelaAdminBase):
         self.filtro.addItem("Concluídas", "concluida")
         self.filtro.addItem("Canceladas", "cancelada")
         self.filtro.currentIndexChanged.connect(self.recarregar)
-        concluir = QPushButton("Concluir")
-        concluir.setObjectName("botaoSucesso")
-        concluir.clicked.connect(self.concluir)
-        cancelar = QPushButton("Cancelar")
-        cancelar.setObjectName("botaoPerigo")
-        cancelar.clicked.connect(self.cancelar)
+
         atualizar = QPushButton("Atualizar")
         atualizar.clicked.connect(self.recarregar)
 
+        self.area_acoes_topo.addWidget(self.busca)
         self.area_acoes_topo.addWidget(self.filtro)
-        self.area_acoes_topo.addWidget(concluir)
-        self.area_acoes_topo.addWidget(cancelar)
         self.area_acoes_topo.addWidget(atualizar)
 
         self.tabela = self.criar_tabela(
-            ["ID", "Data", "Horário", "Médico", "Especialidade", "Paciente", "Status"]
+            [
+                "ID",
+                "Data",
+                "Horário",
+                "Médico",
+                "Especialidade",
+                "Paciente",
+                "Status",
+            ]
         )
-        header = self.tabela.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.Stretch)
-        header.setSectionResizeMode(4, QHeaderView.Stretch)
-        header.setSectionResizeMode(5, QHeaderView.Stretch)
-        header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
 
-        self.layout_principal.addWidget(self.tabela, 1)
+        header = self.tabela.horizontalHeader()
+        header.setSectionResizeMode(
+            0,
+            QHeaderView.ResizeToContents,
+        )
+        header.setSectionResizeMode(
+            1,
+            QHeaderView.ResizeToContents,
+        )
+        header.setSectionResizeMode(
+            2,
+            QHeaderView.ResizeToContents,
+        )
+        header.setSectionResizeMode(
+            3,
+            QHeaderView.Stretch,
+        )
+        header.setSectionResizeMode(
+            4,
+            QHeaderView.Stretch,
+        )
+        header.setSectionResizeMode(
+            5,
+            QHeaderView.Stretch,
+        )
+        header.setSectionResizeMode(
+            6,
+            QHeaderView.ResizeToContents,
+        )
+
+        self.layout_principal.addWidget(
+            self.tabela,
+            1,
+        )
+
         self.recarregar()
 
     def recarregar(self):
         filtro = self.filtro.currentData()
+        texto = normalizar_busca(
+            self.busca.text()
+        )
+
         try:
             with app.app_context():
                 query = Consulta.query
+
                 if filtro != "todas":
-                    query = query.filter(Consulta.status == filtro)
-                consultas = query.order_by(
-                    Consulta.data.desc(), Consulta.horario.asc()
-                ).all()
-                dados = [
-                    {
-                        "id": c.id,
-                        "data": c.data,
-                        "horario": c.horario,
-                        "medico": f"{c.medico.nome} {c.medico.sobrenome}".strip(),
-                        "especialidade": c.medico.especialidade or "",
-                        "paciente": f"{c.usuario.nome} {c.usuario.sobrenome}".strip(),
-                        "status": c.status or "agendada",
-                    }
-                    for c in consultas
-                ]
+                    query = query.filter(
+                        Consulta.status == filtro
+                    )
+
+                consultas = (
+                    query
+                    .order_by(
+                        Consulta.data.desc(),
+                        Consulta.horario.asc(),
+                    )
+                    .all()
+                )
+
+                dados = []
+
+                for consulta in consultas:
+                    medico = consulta.medico
+                    paciente = consulta.usuario
+
+                    nome_medico = (
+                        (
+                            f"{medico.nome or ''} "
+                            f"{medico.sobrenome or ''}"
+                        ).strip()
+                        if medico
+                        else "Médico não encontrado"
+                    )
+
+                    especialidade = (
+                        medico.especialidade or ""
+                        if medico
+                        else ""
+                    )
+
+                    nome_paciente = (
+                        (
+                            f"{paciente.nome or ''} "
+                            f"{paciente.sobrenome or ''}"
+                        ).strip()
+                        if paciente
+                        else "Paciente não encontrado"
+                    )
+
+                    data_formatada = (
+                        consulta.data.strftime(
+                            "%d/%m/%Y"
+                        )
+                        if consulta.data
+                        else ""
+                    )
+
+                    data_iso = (
+                        consulta.data.isoformat()
+                        if consulta.data
+                        else ""
+                    )
+
+                    chave_busca = normalizar_busca(
+                        (
+                            f"{consulta.id} "
+                            f"{data_formatada} "
+                            f"{data_iso} "
+                            f"{consulta.horario or ''} "
+                            f"{nome_medico} "
+                            f"{especialidade} "
+                            f"{nome_paciente} "
+                            f"{consulta.status or ''}"
+                        )
+                    )
+
+                    if (
+                        texto
+                        and texto not in chave_busca
+                    ):
+                        continue
+
+                    dados.append(
+                        {
+                            "id": consulta.id,
+                            "data": consulta.data,
+                            "horario": (
+                                consulta.horario or ""
+                            ),
+                            "medico": nome_medico,
+                            "especialidade": especialidade,
+                            "paciente": nome_paciente,
+                            "status": (
+                                consulta.status
+                                or "agendada"
+                            ),
+                        }
+                    )
 
             self.tabela.setRowCount(0)
-            for linha, consulta in enumerate(dados):
+
+            for linha, consulta in enumerate(
+                dados
+            ):
                 self.tabela.insertRow(linha)
+
+                data_texto = (
+                    consulta["data"].strftime(
+                        "%d/%m/%Y"
+                    )
+                    if consulta["data"]
+                    else "—"
+                )
+
                 valores = [
                     consulta["id"],
-                    consulta["data"].strftime("%d/%m/%Y"),
+                    data_texto,
                     consulta["horario"],
                     consulta["medico"],
                     consulta["especialidade"],
                     consulta["paciente"],
-                    consulta["status"].title(),
+                    (
+                        consulta["status"]
+                        .replace("_", " ")
+                        .title()
+                    ),
                 ]
-                for coluna, valor in enumerate(valores):
-                    item = QTableWidgetItem(str(valor))
-                    if coluna in (0, 1, 2, 6):
-                        item.setTextAlignment(Qt.AlignCenter)
-                    self.tabela.setItem(linha, coluna, item)
+
+                for coluna, valor in enumerate(
+                    valores
+                ):
+                    item = QTableWidgetItem(
+                        str(valor)
+                    )
+
+                    if coluna in (
+                        0,
+                        1,
+                        2,
+                        6,
+                    ):
+                        item.setTextAlignment(
+                            Qt.AlignCenter
+                        )
+
+                    self.tabela.setItem(
+                        linha,
+                        coluna,
+                        item,
+                    )
 
         except Exception as erro:
-            QMessageBox.critical(self, "Erro", str(erro))
-
-    def alterar_status(self, novo_status):
-        consulta_id = self.id_selecionado(self.tabela)
-        if consulta_id is None:
-            QMessageBox.information(self, "Selecione", "Selecione uma consulta.")
-            return
-
-        try:
-            with app.app_context():
-                consulta = database.session.get(Consulta, consulta_id)
-                if consulta is None:
-                    raise ValueError("Consulta não encontrada.")
-                if consulta.status != "agendada":
-                    raise ValueError("Apenas consultas agendadas podem ser alteradas.")
-                consulta.status = novo_status
-                database.session.commit()
-            self.recarregar()
-        except Exception as erro:
-            database.session.rollback()
-            QMessageBox.critical(self, "Erro", str(erro))
-
-    def concluir(self):
-        self.alterar_status("concluida")
-
-    def cancelar(self):
-        self.alterar_status("cancelada")
+            QMessageBox.critical(
+                self,
+                "Erro",
+                str(erro),
+            )

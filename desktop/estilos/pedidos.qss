@@ -1,95 +1,169 @@
-QWidget#paginaPedidos {
-    background-color: #f4f6f8;
+/* Cards resumidos */
+QWidget#containerPedidos {
+    background-color: transparent;
 }
 
-QLabel#tituloPagina {
-    color: #10263b;
-    font-size: 25px;
-    font-weight: 800;
-}
-
-QLabel#subtituloPagina {
-    color: #617080;
-}
-
-QFrame#pedidoCard {
+QFrame#pedidoResumoCard {
     background-color: #ffffff;
-    border: 1px solid #e8edf1;
-    border-radius: 13px;
+    border: 1px solid #dce5ec;
+    border-radius: 14px;
 }
 
-QLabel#numeroPedido {
+QFrame#pedidoResumoCard:hover {
+    border: 1px solid #b9cbd8;
+    background-color: #fcfdfe;
+}
+
+QLabel#numeroPedidoResumo {
     color: #10263b;
-    font-size: 18px;
-    font-weight: 800;
-}
-
-QLabel#dataPedido,
-QLabel#enderecoPedido {
-    color: #617080;
-    font-size: 12px;
-}
-
-QLabel#statusPedido {
-    padding: 6px 10px;
-    border-radius: 6px;
-    font-size: 12px;
+    font-size: 15px;
     font-weight: 750;
 }
 
-QLabel#statusPedido[tipoStatus="aprovado"] {
-    color: #19553e;
-    background-color: #eef8f3;
-    border: 1px solid #b9ddcc;
+QLabel#dataPedidoResumo {
+    color: #75889a;
+    font-size: 12px;
 }
 
-QLabel#statusPedido[tipoStatus="pendente"] {
-    color: #765019;
-    background-color: #fff7e8;
-    border: 1px solid #ead3a7;
+QFrame#areaImagemPedidoResumo {
+    background-color: #f5f8fa;
+    border: 1px solid #e1e8ed;
+    border-radius: 11px;
 }
 
-QLabel#statusPedido[tipoStatus="falha"] {
-    color: #7d2f35;
-    background-color: #fbf0f1;
-    border: 1px solid #e5bdc0;
+QLabel#imagemPedidoClicavel {
+    color: #748596;
+    font-size: 12px;
 }
 
-QLabel#statusPedido[tipoStatus="analise"] {
-    color: #285575;
-    background-color: #eef5fa;
-    border: 1px solid #bfd4e4;
+QLabel#dicaImagemPedido {
+    color: #6f8293;
+    font-size: 11px;
 }
 
-QFrame#linhaProdutoPedido {
-    background-color: #f6f8fa;
-    border: 1px solid #e8edf1;
-    border-radius: 8px;
-}
-
-QLabel#nomeProdutoPedido {
+QLabel#produtoPrincipalPedido {
     color: #10263b;
+    font-size: 16px;
+    font-weight: 750;
+}
+
+QLabel#resumoItensPedido,
+QLabel#localEntregaResumo,
+QLabel#descricaoStatusResumo {
+    color: #607588;
+    font-size: 12px;
+}
+
+QLabel#totalPedidoResumo {
+    color: #123f63;
+    font-size: 22px;
+    font-weight: 800;
+}
+
+/* Status */
+QLabel#statusPedido {
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 11px;
     font-weight: 700;
 }
 
-QLabel#detalheProdutoPedido {
-    color: #617080;
-    font-size: 12px;
+QLabel#statusPedido[tipoStatus="aprovado"] {
+    color: #17603f;
+    background-color: #edf8f2;
+    border: 1px solid #b5dcc9;
 }
 
-QLabel#subtotalProdutoPedido {
-    color: #10263b;
-    font-weight: 750;
+QLabel#statusPedido[tipoStatus="pendente"] {
+    color: #76520b;
+    background-color: #fff8e8;
+    border: 1px solid #ead39b;
 }
 
-QLabel#totalPedido {
+QLabel#statusPedido[tipoStatus="falha"] {
+    color: #8b3038;
+    background-color: #fff1f2;
+    border: 1px solid #efc1c5;
+}
+
+QLabel#statusPedido[tipoStatus="analise"] {
+    color: #4e5f70;
+    background-color: #f1f4f6;
+    border: 1px solid #ccd6dd;
+}
+
+/* Janela de detalhes */
+QDialog#dialogDetalhesPedido {
+    background-color: #f3f6f8;
+}
+
+QFrame#cabecalhoDetalhesPedido,
+QFrame#painelDetalhePedido,
+QFrame#painelTotaisDetalhes,
+QFrame#itemDetalhesPedido {
+    background-color: #ffffff;
+    border: 1px solid #dce5ec;
+    border-radius: 11px;
+}
+
+QLabel#tituloDetalhesPedido {
     color: #10263b;
-    font-size: 20px;
+    font-size: 21px;
     font-weight: 800;
 }
 
-QLabel#pedidosVazio {
-    color: #617080;
+QLabel#dataDetalhesPedido,
+QLabel#descricaoDetalhesPedido,
+QLabel#textoAuxiliarPedido {
+    color: #65798b;
+    font-size: 12px;
+}
+
+QLabel#subtituloDetalhesPedido {
+    color: #10263b;
     font-size: 16px;
-    padding: 50px;
+    font-weight: 750;
+}
+
+QLabel#fotoItemDetalhesPedido {
+    background-color: #f5f8fa;
+    border: 1px solid #e1e8ed;
+    border-radius: 8px;
+}
+
+QLabel#nomeItemDetalhesPedido {
+    color: #10263b;
+    font-size: 14px;
+    font-weight: 750;
+}
+
+QLabel#descricaoItemDetalhesPedido {
+    color: #64798b;
+    font-size: 12px;
+}
+
+QLabel#subtotalItemDetalhesPedido {
+    color: #173f63;
+    font-size: 14px;
+    font-weight: 750;
+}
+
+QLabel#rotuloDetalhePedido,
+QLabel#rotuloTotalDetalhes,
+QLabel#rotuloTotalDestaque {
+    color: #607588;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QLabel#valorDetalhePedido,
+QLabel#valorTotalDetalhes {
+    color: #17344f;
+    font-size: 13px;
+}
+
+QLabel#valorTotalDestaque {
+    color: #123f63;
+    font-size: 19px;
+    font-weight: 800;
 }

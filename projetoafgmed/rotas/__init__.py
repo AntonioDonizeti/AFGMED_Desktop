@@ -9,3 +9,4 @@ def registrar_rotas():
     from projetoafgmed.rotas import carrinho
     from projetoafgmed.rotas import entrega_pagamento
     from projetoafgmed.rotas import pedidos
+    from projetoafgmed.rotas import admin
