@@ -37,6 +37,34 @@ class Usuario(database.Model, UserMixin):
         foreign_keys=[id_medico]
     )
 
+    @property
+    def foto_exibicao(self):
+        """
+        Retorna o caminho relativo da foto que deve ser exibida.
+
+        - Médico: usa a foto do cadastro profissional em fotos_medicos.
+        - Usuário/administrador: usa a foto do perfil em fotos_perfil.
+        """
+
+        if (
+            self.is_medico
+            and not self.is_admin
+            and self.medico is not None
+        ):
+            nome_foto = (
+                self.medico.foto
+                or "default.jpg"
+            ).strip()
+
+            return f"fotos_medicos/{nome_foto}"
+
+        nome_foto = (
+            self.foto
+            or "usuario_padrao.jpg"
+        ).strip()
+
+        return f"fotos_perfil/{nome_foto}"
+
 
 class PerfilUsuario(database.Model):
     id = database.Column(database.Integer, primary_key=True)

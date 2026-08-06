@@ -38,13 +38,15 @@
 
                         <img src="{{ url_for(
                             'static',
-                            filename='fotos_perfil/' + (
-                                usuario.foto or 'usuario_padrao.jpg'
-                            )
+                            filename=usuario.foto_exibicao
                         ) }}"
                              alt="Foto de perfil de {{ usuario.nome }}"
                              class="perfil-foto"
-                             id="previewFoto">
+                             id="previewFoto"
+                             onerror="this.onerror=null; this.src='{{ url_for(
+                                 'static',
+                                 filename='fotos_perfil/usuario_padrao.jpg'
+                             ) }}';">
 
                         <label for="foto"
                                class="perfil-foto-btn"
@@ -375,7 +377,7 @@
                 <!-- AÇÕES -->
                 <div class="perfil-actions">
 
-                    <a href="{{ url_for('homepage') }}"
+                    <a href="{{ url_for('medicos') if usuario.is_medico and not usuario.is_admin else url_for('homepage') }}"
                        class="btn btn-outline-secondary">
 
                         Cancelar

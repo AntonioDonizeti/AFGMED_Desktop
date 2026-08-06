@@ -176,13 +176,15 @@
 
                             <img src="{{ url_for(
                                 'static',
-                                filename='fotos_perfil/' + (
-                                    current_user.foto or 'usuario_padrao.jpg'
-                                )
+                                filename=current_user.foto_exibicao
                             ) }}"
-                                 alt="Perfil"
+                                 alt="Perfil de {{ current_user.nome }}"
                                  class="rounded-circle"
-                                 style="width:40px; height:40px; object-fit:cover;">
+                                 style="width:40px; height:40px; object-fit:cover;"
+                                 onerror="this.onerror=null; this.src='{{ url_for(
+                                     'static',
+                                     filename='fotos_perfil/usuario_padrao.jpg'
+                                 ) }}';">
 
                             <span class="ms-2">
                                 {{ current_user.nome }}

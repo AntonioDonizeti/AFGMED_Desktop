@@ -143,3 +143,60 @@ login_manager.login_message_category = 'info'
 from projetoafgmed.rotas import registrar_rotas
 
 registrar_rotas()
+
+
+# ==========================
+# ADMINISTRADOR DEMO
+# ==========================
+
+ADMIN_DEMO_EMAIL = "admin.demo@afgmed.com"
+ADMIN_DEMO_SENHA = "AFGMED@Demo2026"
+
+
+def criar_admin_demo():
+    from projetoafgmed.models import Usuario
+
+    admin_demo = Usuario.query.filter_by(
+        email=ADMIN_DEMO_EMAIL
+    ).first()
+
+    senha_hash = bcrypt.generate_password_hash(
+        ADMIN_DEMO_SENHA
+    ).decode("utf-8")
+
+    if admin_demo is None:
+        admin_demo = Usuario(
+            nome="Administrador",
+            sobrenome="Demonstração",
+            email=ADMIN_DEMO_EMAIL,
+            senha=senha_hash,
+            foto="usuario_padrao.jpg",
+            is_admin=True,
+            is_medico=False,
+            id_medico=None,
+        )
+
+        database.session.add(admin_demo)
+
+    else:
+        admin_demo.nome = "Administrador"
+        admin_demo.sobrenome = "Demonstração"
+        admin_demo.email = ADMIN_DEMO_EMAIL
+        admin_demo.senha = senha_hash
+        admin_demo.is_admin = True
+        admin_demo.is_medico = False
+        admin_demo.id_medico = None
+
+    try:
+        database.session.commit()
+
+    except Exception:
+        database.session.rollback()
+        app.logger.exception(
+            "Não foi possível criar o administrador demo."
+        )
+
+
+with app.app_context():
+    database.create_all()
+    criar_admin_demo()

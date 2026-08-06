@@ -1,98 +1,310 @@
-from flask import render_template, redirect, url_for, flash, request
-from flask_login import login_required, current_user
-from werkzeug.utils import secure_filename
 from datetime import datetime
-from uuid import uuid4
 import os
+from uuid import uuid4
+
+from flask import flash, redirect, render_template, request, url_for
+from flask_login import current_user, login_required
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from werkzeug.utils import secure_filename
 
 from projetoafgmed import app, database
-from projetoafgmed.models import Usuario, PerfilUsuario
+from projetoafgmed.models import PerfilUsuario, Usuario
 
 
-EXTENSOES_PERMITIDAS = {".jpg", ".jpeg", ".png", ".webp"}
+EXTENSOES_PERMITIDAS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+}
+
+ADMIN_DEMO_EMAIL = "admin.demo@afgmed.com"
+
+
+def usuario_e_admin_demo(usuario):
+    return bool(
+        getattr(usuario, "is_admin", False)
+        and (usuario.email or "").strip().lower() == ADMIN_DEMO_EMAIL
+    )
+
+
+def obter_medico_vinculado(usuario):
+    if not getattr(usuario, "is_medico", False):
+        return None
+
+    if getattr(usuario, "is_admin", False):
+        return None
+
+    if not getattr(usuario, "id_medico", None):
+        return None
+
+    return usuario.medico
+
+
+def obter_perfil_usuario(usuario):
+    """
+    Retorna o perfil complementar existente.
+
+    Quando ainda não existe, cria apenas um objeto temporário usando
+    id_usuario. Não usa PerfilUsuario(usuario=usuario), pois essa forma
+    altera usuario.perfil antes de o novo objeto entrar na sessão e pode
+    gerar SAWarning durante consultas automáticas dos templates.
+    """
+
+    perfil_existente = usuario.perfil
+
+    if perfil_existente is not None:
+        return perfil_existente
+
+    return PerfilUsuario(
+        id_usuario=usuario.id,
+    )
+
+
+def salvar_foto_perfil(arquivo, usuario, medico_vinculado):
+    nome_original = secure_filename(
+        arquivo.filename
+    )
+
+    extensao = os.path.splitext(
+        nome_original
+    )[1].lower()
+
+    if extensao not in EXTENSOES_PERMITIDAS:
+        raise ValueError(
+            "Formato de imagem inválido. Use JPG, PNG ou WEBP."
+        )
+
+    nome_foto = f"{uuid4().hex}{extensao}"
+
+    if medico_vinculado is not None:
+        nome_pasta = "fotos_medicos"
+    else:
+        nome_pasta = "fotos_perfil"
+
+    pasta_fotos = os.path.join(
+        app.root_path,
+        "static",
+        nome_pasta,
+    )
+
+    os.makedirs(
+        pasta_fotos,
+        exist_ok=True,
+    )
+
+    caminho = os.path.join(
+        pasta_fotos,
+        nome_foto,
+    )
+
+    arquivo.save(
+        caminho
+    )
+
+    if medico_vinculado is not None:
+        medico_vinculado.foto = nome_foto
+    else:
+        usuario.foto = nome_foto
 
 
 @app.route("/perfil", methods=["GET", "POST"])
 @login_required
 def perfil():
     usuario = current_user
-    perfil_usuario = usuario.perfil or PerfilUsuario(usuario=usuario)
+
+    medico_vinculado = obter_medico_vinculado(
+        usuario
+    )
+
+    perfil_usuario = obter_perfil_usuario(
+        usuario
+    )
+
+    conta_demo = usuario_e_admin_demo(
+        usuario
+    )
 
     if request.method == "POST":
+        arquivo_foto = request.files.get(
+            "foto"
+        )
 
-        # FOTO DE PERFIL
-        if "foto" in request.files and request.files["foto"].filename:
-            arquivo = request.files["foto"]
-            nome_original = secure_filename(arquivo.filename)
-            extensao = os.path.splitext(nome_original)[1].lower()
+        if arquivo_foto and arquivo_foto.filename:
+            try:
+                salvar_foto_perfil(
+                    arquivo_foto,
+                    usuario,
+                    medico_vinculado,
+                )
 
-            if extensao not in EXTENSOES_PERMITIDAS:
-                flash("Formato de imagem inválido. Use JPG, PNG ou WEBP.", "danger")
-                return redirect(url_for("perfil"))
+            except ValueError as erro:
+                flash(
+                    str(erro),
+                    "danger",
+                )
 
-            nome_foto = f"{uuid4().hex}{extensao}"
+                return redirect(
+                    url_for("perfil")
+                )
 
-            pasta_fotos = os.path.join(app.root_path, "static", "fotos_perfil")
-            os.makedirs(pasta_fotos, exist_ok=True)
+        usuario.nome = (
+            request.form.get("nome")
+            or usuario.nome
+        ).strip()
 
-            caminho = os.path.join(pasta_fotos, nome_foto)
-            arquivo.save(caminho)
+        usuario.sobrenome = (
+            request.form.get("sobrenome")
+            or usuario.sobrenome
+        ).strip()
 
-            usuario.foto = nome_foto
+        email_novo = (
+            request.form.get("email")
+            or usuario.email
+        ).strip().lower()
 
-        # DADOS DO USUÁRIO
-        usuario.nome = request.form.get("nome") or usuario.nome
-        usuario.sobrenome = request.form.get("sobrenome") or usuario.sobrenome
+        if conta_demo:
+            email_novo = ADMIN_DEMO_EMAIL
 
-        email_novo = request.form.get("email")
+        email_em_uso = Usuario.query.filter(
+            Usuario.email == email_novo,
+            Usuario.id != current_user.id,
+        ).first()
 
-        if email_novo:
-            email_novo = email_novo.strip().lower()
+        if email_em_uso:
+            flash(
+                "Este e-mail já está em uso.",
+                "danger",
+            )
 
-            email_em_uso = Usuario.query.filter(
-                Usuario.email == email_novo,
-                Usuario.id != current_user.id
-            ).first()
+            return redirect(
+                url_for("perfil")
+            )
 
-            if email_em_uso:
-                flash("Este e-mail já está em uso.", "danger")
-                return redirect(url_for("perfil"))
+        usuario.email = email_novo
 
-            usuario.email = email_novo
+        perfil_usuario.telefone = (
+            request.form.get("telefone")
+            or None
+        )
 
-        # DADOS COMPLEMENTARES
-        perfil_usuario.telefone = request.form.get("telefone")
-        perfil_usuario.cpf = request.form.get("cpf")
+        perfil_usuario.cpf = (
+            request.form.get("cpf")
+            or None
+        )
 
-        data_nascimento = request.form.get("data_nascimento")
+        data_nascimento = request.form.get(
+            "data_nascimento"
+        )
 
         if data_nascimento:
             try:
-                perfil_usuario.data_nascimento = datetime.strptime(
-                    data_nascimento,
-                    "%Y-%m-%d"
-                ).date()
+                perfil_usuario.data_nascimento = (
+                    datetime.strptime(
+                        data_nascimento,
+                        "%Y-%m-%d",
+                    ).date()
+                )
+
             except ValueError:
-                flash("Data de nascimento inválida.", "danger")
-                return redirect(url_for("perfil"))
+                flash(
+                    "Data de nascimento inválida.",
+                    "danger",
+                )
+
+                return redirect(
+                    url_for("perfil")
+                )
+
         else:
             perfil_usuario.data_nascimento = None
 
-        # ENDEREÇO
-        perfil_usuario.endereco = request.form.get("endereco")
-        perfil_usuario.cidade = request.form.get("cidade")
-        perfil_usuario.estado = request.form.get("estado")
-        perfil_usuario.cep = request.form.get("cep")
+        perfil_usuario.endereco = (
+            request.form.get("endereco")
+            or None
+        )
 
-        database.session.add(usuario)
-        database.session.add(perfil_usuario)
-        database.session.commit()
+        perfil_usuario.cidade = (
+            request.form.get("cidade")
+            or None
+        )
 
-        flash("Perfil atualizado com sucesso!", "success")
-        return redirect(url_for("perfil"))
+        perfil_usuario.estado = (
+            request.form.get("estado")
+            or None
+        )
+
+        perfil_usuario.cep = (
+            request.form.get("cep")
+            or None
+        )
+
+        try:
+            database.session.add(
+                usuario
+            )
+
+            database.session.add(
+                perfil_usuario
+            )
+
+            if medico_vinculado is not None:
+                database.session.add(
+                    medico_vinculado
+                )
+
+            database.session.commit()
+
+        except IntegrityError:
+            database.session.rollback()
+
+            flash(
+                "Não foi possível atualizar o perfil porque o e-mail "
+                "ou CPF informado já está em uso.",
+                "danger",
+            )
+
+            return redirect(
+                url_for("perfil")
+            )
+
+        except SQLAlchemyError:
+            database.session.rollback()
+
+            app.logger.exception(
+                "Erro ao atualizar o perfil do usuário %s.",
+                current_user.id,
+            )
+
+            flash(
+                "Não foi possível salvar o perfil. Tente novamente.",
+                "danger",
+            )
+
+            return redirect(
+                url_for("perfil")
+            )
+
+        if conta_demo:
+            flash(
+                "Perfil atualizado. O e-mail da conta demonstrativa "
+                "foi mantido para preservar o acesso público.",
+                "info",
+            )
+
+        else:
+            flash(
+                "Perfil atualizado com sucesso!",
+                "success",
+            )
+
+        return redirect(
+            url_for("perfil")
+        )
 
     return render_template(
         "perfil.html",
         usuario=usuario,
-        perfil=perfil_usuario
+        perfil=perfil_usuario,
+        conta_demo=conta_demo,
     )

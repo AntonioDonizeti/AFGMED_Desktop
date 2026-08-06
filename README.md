@@ -38,6 +38,48 @@ As versões Web e Desktop compartilham:
 
 ---
 
+## Acesso de demonstração
+
+O projeto possui contas fictícias prontas para apresentar as diferentes perspectivas do sistema.
+
+| Perspectiva | E-mail | Senha |
+|---|---|---|
+| **Administrador** | `admin.demo@afgmed.com` | `AFGMED@Demo2026` |
+| **Médico — Alexandra** | `alexandra@gmail.com` | `123456` |
+
+### Administrador
+
+A conta administrativa permite testar:
+
+- dashboard administrativo;
+- cadastro e edição de médicos;
+- cadastro e gerenciamento de produtos;
+- controle de estoque;
+- produtos em destaque na aplicação Web;
+- visualização de todos os pedidos;
+- visualização da agenda geral;
+- filtros e pesquisas administrativas.
+
+### Médico
+
+A conta da médica Alexandra permite testar:
+
+- área exclusiva do profissional;
+- visualização das próprias consultas;
+- filtro de consultas agendadas para hoje;
+- pesquisa de atendimentos;
+- ordenação de consultas abertas;
+- conclusão de consultas;
+- perfil profissional com a foto cadastrada.
+
+A perspectiva médica não possui acesso ao catálogo de produtos, carrinho, compras, entrega ou cancelamento de consultas.
+
+> Todas as contas, pacientes, médicos, produtos, pedidos e consultas presentes no projeto são fictícios. Não insira dados pessoais reais no ambiente de demonstração.
+
+> As credenciais acima são públicas de forma intencional e devem ser usadas somente neste projeto acadêmico.
+
+---
+
 ## Tecnologias
 
 ### Backend e dados
@@ -276,7 +318,7 @@ Horários configurados atualmente:
 - uso de nomes seguros para arquivos enviados;
 - prevenção de acesso médico a rotas de compras.
 
-> Nunca envie o arquivo `.env`, tokens, senhas ou o banco de produção para o GitHub.
+> As credenciais demonstrativas apresentadas neste README são públicas intencionalmente. Nunca envie ao GitHub o arquivo `.env`, tokens, credenciais reais, chaves privadas ou um banco de produção.
 
 ---
 
@@ -364,14 +406,21 @@ Para cadastrar médicos e produtos demonstrativos:
 python popular_banco.py
 ```
 
-As contas médicas de demonstração usam:
+O banco demonstrativo incluído no projeto já possui a médica Alexandra:
 
 ```text
-Login: e-mail cadastrado do médico
+E-mail: alexandra@gmail.com
 Senha: 123456
 ```
 
-> A senha padrão é destinada somente ao ambiente acadêmico e de testes.
+A conta administrativa de demonstração utiliza:
+
+```text
+E-mail: admin.demo@afgmed.com
+Senha: AFGMED@Demo2026
+```
+
+> Essas credenciais são destinadas exclusivamente ao ambiente acadêmico e de demonstração.
 
 ---
 
@@ -396,6 +445,8 @@ python desktop\main.py
 ```
 
 As duas versões devem apontar para o mesmo valor de `DATABASE_PATH`.
+
+Quando Web e Desktop usam o mesmo arquivo SQLite local, as contas demonstrativas e as alterações realizadas em uma interface ficam disponíveis na outra. A implantação no Render utiliza um banco separado do arquivo local do computador.
 
 ---
 
@@ -489,7 +540,7 @@ Os testes verificam, entre outros pontos:
 
 **Antonio Donizeti** e **Fabricio Ferreira**
 
-- GitHub: [@AntonioDonizeti](https://github.com/AntonioDonizeti) / [@FabricioF97](https://github.com/FabricioF97)
+- GitHub: [@AntonioDonizeti](https://github.com/AntonioDonizeti) / [@FabricioF97](https://github.com/FabricioF97) 
 - Repositório: [AFGMED_Desktop](https://github.com/AntonioDonizeti/AFGMED_Desktop)
 
 ---
